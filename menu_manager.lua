@@ -151,7 +151,8 @@ function menu_manager.create_item_list_menu(items, title)
                 id = "ITEM_SELECTED_" .. tostring(item_id), -- ここを修正
                 label = item_name,
                 description = item_description,
-                original_item_id = item_id -- 元のアイテムIDも保存
+                original_item_id = item_id, -- 元のアイテムIDも保存
+                quantity = item.quantity -- ここで数量を追加
             })
         end
     end

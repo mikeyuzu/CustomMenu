@@ -12,7 +12,7 @@ local settings = {
     },
     menu = {
         pos = { x = 200, y = 100 },
-        text = { size = 12, font = 'MS Gothic', stroke = { width = 2, alpha = 255, red = 0, green = 0, blue = 0 } },
+        text = { size = 12, font = 'MS Gothic', stroke = { width = 2, alpha = 255, red = 0, green = 0, blue = 0 }, justify = 'left' }, -- デフォルトは左寄せ
         bg = { alpha = 200, red = 20, green = 20, blue = 40 },
         flags = { bold = false, draggable = false }
     },
@@ -24,9 +24,15 @@ local settings = {
     }
 }
 
+-- アイテム名と数量の間のスペース
+local LABEL_QUANTITY_SPACING = 3
+-- 数量表示カラムの幅（例: "999" + 前後のスペースを考慮）
+local QUANTITY_COLUMN_WIDTH = 5 
+
 -- テキストオブジェクト
 local indicator_text = nil
 local menu_texts = {}
+local menu_quantities = {} -- 数量表示用のテキストオブジェクト
 local menu_background = nil
 local cursor_highlight_background = nil
 local description_text = nil
@@ -47,6 +53,10 @@ function ui.cleanup()
         text_obj:destroy()
     end
     menu_texts = {}
+    for _, text_obj in ipairs(menu_quantities) do
+        text_obj:destroy()
+    end
+    menu_quantities = {}
     if menu_background then
         menu_background:destroy()
         menu_background = nil
@@ -83,6 +93,9 @@ function ui.hide_menu_list()
     for _, text_obj in ipairs(menu_texts) do
         text_obj:hide()
     end
+    for _, text_obj in ipairs(menu_quantities) do
+        text_obj:hide()
+    end
     if menu_background then
         menu_background:hide()
     end
@@ -101,6 +114,10 @@ function ui.update_menu_display(menu_data)
         text_obj:destroy()
     end
     menu_texts = {}
+    for _, text_obj in ipairs(menu_quantities) do
+        text_obj:destroy()
+    end
+    menu_quantities = {}
     if menu_background then
         menu_background:destroy()
         menu_background = nil
@@ -116,7 +133,9 @@ function ui.update_menu_display(menu_data)
 
     -- 2. メニューの寸法と内容を計算
     local lines_data = {}
-    local max_len = 0
+    local max_label_len = 0 -- アイテム名の最大長
+    local max_quantity_len = 0 -- 数量の最大長
+
     local line_height = settings.menu.text.size + 4
 
     table.insert(lines_data, {text=menu_data.title, is_item=false, index=0})
@@ -128,22 +147,28 @@ function ui.update_menu_display(menu_data)
     for i = start_idx, end_idx do
         local item = menu_data.items[i]
         local prefix = (i == menu_data.cursor) and '> ' or '  '
-        table.insert(lines_data, {text = prefix .. item.label, is_item=true, index=i})
+        local label_text = prefix .. item.label
+        local quantity_text = tostring(item.quantity or '')
+
+        if string.len(label_text) > max_label_len then
+            max_label_len = string.len(label_text)
+        end
+        if string.len(quantity_text) > max_quantity_len then
+            max_quantity_len = string.len(quantity_text)
+        end
+        
+        table.insert(lines_data, {text = label_text, quantity = quantity_text, is_item=true, index=i})
     end
+    
+    -- 数量カラムの表示を考慮したメニュー全体の最大幅
+    local menu_content_width = max_label_len + LABEL_QUANTITY_SPACING + QUANTITY_COLUMN_WIDTH
+    local max_len = math.max(string.len(menu_data.title), menu_content_width, 30) -- タイトルや区切り線の長さも考慮
+    max_len = max_len + 4 -- パディング
 
     if #menu_data.items > menu_data.page_size then
-        table.insert(lines_data, {text=string.rep('-', 30), is_item=false, index=0})
+        table.insert(lines_data, {text=string.rep('-', max_len - 4), is_item=false, index=0}) -- max_lenからパディングを引く
         table.insert(lines_data, {text=string.format('[%d/%d]', menu_data.cursor, #menu_data.items), is_item=false, index=0})
     end
-
-    for _, line in ipairs(lines_data) do
-        if string.len(line.text) > max_len then
-            max_len = string.len(line.text)
-        end
-    end
-
-    -- 最大長にパディングを追加
-    max_len = max_len + 4
 
     -- 3. メインの背景を描画
     local line_of_spaces = string.rep(' ', max_len)
@@ -193,6 +218,22 @@ function ui.update_menu_display(menu_data)
         local text_obj = texts.new(line.text, text_options)
         table.insert(menu_texts, text_obj)
         text_obj:show()
+
+        -- 数量表示 (アイテム行のみ)
+        if line.is_item and line.quantity ~= '' then
+            local quantity_x_pos = settings.menu.pos.x + max_len * (settings.menu.text.size * 0.6) - QUANTITY_COLUMN_WIDTH * (settings.menu.text.size * 0.6) - 10 -- 微調整
+            local quantity_options = {
+                pos = { x = quantity_x_pos, y = current_y_for_text },
+                text = { size = settings.menu.text.size, font = settings.menu.text.font, stroke = settings.menu.text.stroke, justify = 'right' },
+                bg = { alpha = 0, red = 0, green = 0, blue = 0 },
+                flags = settings.menu.flags,
+            }
+            local padded_quantity = string.format("%" .. QUANTITY_COLUMN_WIDTH .. "s", line.quantity) -- 右寄せのためにパディング
+            local quantity_obj = texts.new(padded_quantity, quantity_options)
+            table.insert(menu_quantities, quantity_obj)
+            quantity_obj:show()
+        end
+
         current_y_for_text = current_y_for_text + line_height
     end
 

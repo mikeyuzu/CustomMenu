@@ -72,6 +72,7 @@ windower.register_event('addon command', function(command, ...)
 
     if command == 'open' then
         param.set_menu_open(true)
+        param.set_input_delay_frames(2)
         param.set_current_menu(menu_manager.get_main_menu())
         ui.show_menu_list(param.get_current_menu())
         input_handler.block_game_input()
@@ -95,6 +96,10 @@ end)
 
 -- キー入力処理
 windower.register_event('keyboard', function(dik, down, flags, blocked)
+    if param.get_input_delay_frames() > 0 then
+        return true
+    end
+
     if not param.get_menu_open() or not param.get_input_blocked() then
         return false
     end
@@ -130,6 +135,10 @@ end)
 
 -- フレーム更新
 windower.register_event('prerender', function()
+    if param.get_input_delay_frames() > 0 then
+        param.set_input_delay_frames(param.get_input_delay_frames() - 1)
+    end
+
     local player = windower.ffxi.get_player()
     if not player then
         return

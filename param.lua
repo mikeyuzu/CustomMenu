@@ -4,7 +4,8 @@ local state = {
     has_notification = false,
     current_menu = nil,
     menu_open = false,
-    input_blocked = false
+    input_blocked = false,
+    input_delay_frames = 0
 }
 
 function param.get_has_notification()
@@ -37,6 +38,14 @@ end
 
 function param.set_input_blocked(input_blocked)
     state.input_blocked = input_blocked
+end
+
+function param.get_input_delay_frames()
+    return state.input_delay_frames
+end
+
+function param.set_input_delay_frames(frames)
+    state.input_delay_frames = frames
 end
 
 return param

@@ -45,15 +45,20 @@ function Handle_Confirm()
     local selected = menu_manager.get_selected_item()
     if not selected then return end
 
-    -- HTTP通信して次のメニューデータを取得
-    http_handler.fetch_menu_data(selected.id, function(success, data)
-        if success then
-            param.set_current_menu(menu_manager.create_submenu(data))
-            ui.show_menu_list(param.get_current_menu())
-        else
-            print('Failed to load menu data')
-        end
-    end)
+    if selected.id == 'synthesis' then
+        local synthesis_menu_data = menu_manager.get_synthesis_menu_data()
+        param.set_current_menu(menu_manager.create_submenu(synthesis_menu_data))
+        ui.show_menu_list(param.get_current_menu())
+    else
+        http_handler.fetch_menu_data(selected.id, function(success, data)
+            if success then
+                param.set_current_menu(menu_manager.create_submenu(data))
+                ui.show_menu_list(param.get_current_menu())
+            else
+                print('Failed to load menu data')
+            end
+        end)
+    end
 end
 
 -- キャンセルボタン処理

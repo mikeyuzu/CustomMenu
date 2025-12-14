@@ -14,6 +14,12 @@ local settings = {
         text = { size = 12, font = 'MS Gothic', stroke = { width = 2, alpha = 255, red = 0, green = 0, blue = 0 } },
         bg = { alpha = 200, red = 20, green = 20, blue = 40 },
         flags = { bold = false, draggable = false }
+    },
+    description_panel = {
+        pos = { x = 480, y = 100 }, -- メニューの右側に配置
+        text = { size = 12, font = 'MS Gothic', stroke = { width = 2, alpha = 255, red = 0, green = 0, blue = 0 } },
+        bg = { alpha = 200, red = 20, green = 20, blue = 40 },
+        flags = { bold = false, draggable = false }
     }
 }
 
@@ -22,6 +28,7 @@ local indicator_text = nil
 local menu_texts = {}
 local menu_background = nil
 local cursor_highlight_background = nil
+local description_text = nil
 
 -- 初期化
 function ui.initialize()
@@ -47,6 +54,10 @@ function ui.cleanup()
         cursor_highlight_background:destroy()
         cursor_highlight_background = nil
     end
+    if description_text then
+        description_text:destroy()
+        description_text = nil
+    end
 end
 
 -- 通知表示更新
@@ -63,6 +74,7 @@ end
 -- メニューリスト表示
 function ui.show_menu_list(menu_data)
     ui.update_menu_display(menu_data)
+    if description_text then description_text:show() end
 end
 
 -- メニューリスト非表示
@@ -76,6 +88,7 @@ function ui.hide_menu_list()
     if cursor_highlight_background then
         cursor_highlight_background:hide()
     end
+    if description_text then description_text:hide() end
 end
 
 -- メニュー表示内容更新
@@ -94,6 +107,10 @@ function ui.update_menu_display(menu_data)
     if cursor_highlight_background then
         cursor_highlight_background:destroy()
         cursor_highlight_background = nil
+    end
+    if description_text then -- Clear existing description
+        description_text:destroy()
+        description_text = nil
     end
 
     -- 2. メニューの寸法と内容を計算
@@ -143,7 +160,7 @@ function ui.update_menu_display(menu_data)
     menu_background = texts.new(block_of_spaces, bg_options)
     menu_background:show()
 
-    -- 4. Draw the cursor highlight background
+    -- 4. カーソルのハイライト背景を描画する
     local current_y_for_highlight = settings.menu.pos.y
     local line_index = 0
     for _, line in ipairs(lines_data) do
@@ -151,7 +168,7 @@ function ui.update_menu_display(menu_data)
         if line.is_item and line.index == menu_data.cursor then
             local highlight_options = {
                 pos = { x = settings.menu.pos.x - 10, y = current_y_for_highlight },
-                bg = { alpha = 255, red = 70, green = 70, blue = 100 }, -- ハイライト色
+                bg = { alpha = 255, red = 70, green = 70, blue = 100 },
                 text = settings.menu.text,
                 flags = settings.menu.flags,
             }
@@ -162,7 +179,7 @@ function ui.update_menu_display(menu_data)
         current_y_for_highlight = current_y_for_highlight + line_height
     end
 
-    -- 5. Draw the text on top
+    -- 5. 上にテキストを描く
     local current_y_for_text = settings.menu.pos.y
     for _, line in ipairs(lines_data) do
         local text_options = {
@@ -176,6 +193,21 @@ function ui.update_menu_display(menu_data)
         table.insert(menu_texts, text_obj)
         text_obj:show()
         current_y_for_text = current_y_for_text + line_height
+    end
+
+    -- 6. 描画説明パネル
+    local selected_item_idx = menu_data.cursor
+    local selected_item = menu_data.items[selected_item_idx]
+
+    if selected_item and selected_item.description then
+        local description_options = {
+            pos = settings.description_panel.pos,
+            bg = settings.description_panel.bg,
+            text = settings.description_panel.text,
+            flags = settings.description_panel.flags,
+        }
+        description_text = texts.new(selected_item.description, description_options)
+        description_text:show()
     end
 end
 

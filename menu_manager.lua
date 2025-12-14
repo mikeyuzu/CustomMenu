@@ -15,6 +15,13 @@ local main_menu_items = {
     { id = 'mission', label = 'ミッション' }
 }
 
+-- 合成メニューの定義
+local synthesis_menu_items = {
+    { id = 'synthesis_storage', label = '合成倉庫', description = '合成倉庫はモンスターやショップから合成素材を入手した時に自動的に格納される倉庫です\n格納した素材が合成に可能な数になった時、合成レシピが開放されます\n開放された合成レシピから合成が可能になります\n\n合成に失敗はありません\nHQ合成にはその合成アイテムに必要なスキル+10が必要になります\nHQ2には+20、HQ3には+30が必要になります\n\n合成したアイテムはポストに届きます\n\n合成倉庫からマイバックに取り出したい時は、その項目を選んで取り出してください\n取り出したアイテムはポストに届きます\n\n取り出した素材を再び合成倉庫に移動させたい場合は\nポスト以外からマイバックへ移動する操作で自動判別されて合成倉庫に移動します\n例えばモグケースからマイバックへ移動など' },
+    { id = 'item_list', label = 'アイテム別リスト', description = 'アイテムの種別（武器、防具など）からレシピを検索します。' },
+    { id = 'guild_list', label = 'ギルド別リスト', description = 'ギルドを選んでレシピを検索します。' }
+}
+
 -- 初期化
 function menu_manager.initialize()
     menu_stack = {}
@@ -32,6 +39,14 @@ function menu_manager.get_main_menu()
     }
     menu_stack = {}
     return current_menu
+end
+
+-- 合成メニューのデータ取得
+function menu_manager.get_synthesis_menu_data()
+    return {
+        title = '合成',
+        items = synthesis_menu_items
+    }
 end
 
 -- カーソル移動

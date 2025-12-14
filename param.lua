@@ -5,7 +5,9 @@ local state = {
     current_menu = nil,
     menu_open = false,
     input_blocked = false,
-    input_delay_frames = 0
+    input_delay_frames = 0,
+    synergy_inventory_cache = nil, -- 新しいキャッシュ用
+    chara_id = nil -- charaId用
 }
 
 function param.get_has_notification()
@@ -46,6 +48,23 @@ end
 
 function param.set_input_delay_frames(frames)
     state.input_delay_frames = frames
+end
+
+-- 新しいGetter/Setter
+function param.get_synergy_inventory_cache()
+    return state.synergy_inventory_cache
+end
+
+function param.set_synergy_inventory_cache(cache)
+    state.synergy_inventory_cache = cache
+end
+
+function param.get_chara_id()
+    return state.chara_id
+end
+
+function param.set_chara_id(id)
+    state.chara_id = id
 end
 
 return param

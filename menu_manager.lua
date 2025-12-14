@@ -123,7 +123,7 @@ end
 function menu_manager.create_submenu(data)
     -- 現在のメニューをスタックに追加
     table.insert(menu_stack, current_menu)
-    
+
     -- 新しいメニューを作成
     current_menu = {
         title = data.title or 'サブメニュー',
@@ -132,7 +132,7 @@ function menu_manager.create_submenu(data)
         scroll_pos = 1,
         page_size = 10
     }
-    
+
     return current_menu
 end
 
@@ -144,7 +144,7 @@ end
 -- 一つ前に戻る
 function menu_manager.go_back()
     if #menu_stack == 0 then return nil end
-    
+
     current_menu = table.remove(menu_stack)
     return current_menu
 end

@@ -14,6 +14,7 @@ local menu_manager = require('menu_manager')
 local input_handler = require('input_handler')
 local http_handler = require('http_handler')
 local param = require('param')
+local synergy_category_generator = require('synergy_category_generator')
 
 -- 初期化
 windower.register_event('load', function()
@@ -50,6 +51,42 @@ function Handle_Confirm()
         local synthesis_menu_data = menu_manager.get_synthesis_menu_data()
         param.set_current_menu(menu_manager.create_submenu(synthesis_menu_data))
         ui.show_menu_list(param.get_current_menu())
+    elseif selected.id == 'synthesis_storage' then
+        local player = windower.ffxi.get_player()
+        if not player or not player.id then
+            print('エラー: キャラクターIDが取得できません。')
+            return
+        end
+        local chara_id = player.id
+        param.set_chara_id(chara_id) -- chara_idをparamに保存
+
+        http_handler.fetch_synergy_inventory(chara_id, function(success, data, error_message)
+            if success and data then
+                param.set_synergy_inventory_cache(data) -- データをキャッシュ
+
+                local generated_menu = synergy_category_generator.generate_menu_data(data)
+
+                if #generated_menu.items == 0 and generated_menu.empty_message then
+                    -- アイテムがない場合の特殊な表示
+                    local empty_menu_data = {
+                        title = generated_menu.title,
+                        items = {{ id = 'empty_message', label = generated_menu.empty_message, description = ""}},
+                        cursor = 1,
+                        scroll_pos = 1,
+                        page_size = 1
+                    }
+                    param.set_current_menu(menu_manager.create_submenu(empty_menu_data))
+                    ui.show_menu_list(param.get_current_menu())
+                    print(generated_menu.empty_message)
+                else
+                    param.set_current_menu(menu_manager.create_submenu(generated_menu))
+                    ui.show_menu_list(param.get_current_menu())
+                end
+            else
+                print('Failed to load synergy inventory data: ' .. (error_message or 'Unknown error'))
+                -- エラーメッセージをUIに表示するなどの処理
+            end
+        end)
     else
         http_handler.fetch_menu_data(selected.id, function(success, data)
             if success then

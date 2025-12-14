@@ -29,7 +29,9 @@ local messages = {
                 label = 'ギルド別リスト',
                 description = 'ギルドを選んでレシピを検索します。',
             }
-        }
+        },
+        empty_storage_message = '合成倉庫にアイテムはありません',
+        category_description = '%sカテゴリの合成素材を表示します。',
     },
 
     command_help = {

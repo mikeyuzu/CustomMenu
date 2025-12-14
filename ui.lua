@@ -1,4 +1,5 @@
 local texts = require('texts')
+local messages = require('message')
 local ui = {}
 
 -- UI設定
@@ -33,7 +34,7 @@ local description_text = nil
 -- 初期化
 function ui.initialize()
     -- インジケーター(カスタムメニュー)の作成
-    indicator_text = texts.new('カスタムメニュー', settings.indicator)
+    indicator_text = texts.new(messages.menu_title, settings.indicator)
     indicator_text:show()
 end
 
@@ -64,9 +65,9 @@ end
 function ui.update_notification(has_notification)
     if indicator_text then
         if has_notification then
-            indicator_text:text('カスタムメニュー ${icon|!}')
+            indicator_text:text(messages.notification_with_icon)
         else
-            indicator_text:text('カスタムメニュー')
+            indicator_text:text(messages.notification_text)
         end
     end
 end

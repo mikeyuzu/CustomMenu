@@ -5,6 +5,7 @@ _addon.commands = {'cmenu'}
 
 require('logger')
 require('strings')
+local messages = require('message')
 
 -- 各モジュールの読み込み
 local settings = require('settings')
@@ -92,10 +93,10 @@ windower.register_event('addon command', function(command, ...)
         param.set_has_notification(not param.get_has_notification())
         ui.update_notification(param.get_has_notification())
     elseif command == 'help' then
-        print('CustomMenu Commands:')
-        print('  //cmenu open  - メニューを開く')
-        print('  //cmenu close - メニューを閉じる')
-        print('  //cmenu notify - 通知を切り替え(デバッグ用)')
+        print(messages.command_help.header)
+        print(messages.command_help.open)
+        print(messages.command_help.close)
+        print(messages.command_help.notify)
     end
 end)
 

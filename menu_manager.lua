@@ -1,3 +1,4 @@
+local messages = require('message')
 local menu_manager = {}
 
 -- メニュー履歴スタック
@@ -8,18 +9,18 @@ local current_menu = nil
 
 -- メインメニューの定義
 local main_menu_items = {
-    { id = 'eminence', label = 'エミネンス・レコード' },
-    { id = 'synthesis', label = '合成' },
-    { id = 'collection', label = '図鑑' },
-    { id = 'quest', label = 'クエスト' },
-    { id = 'mission', label = 'ミッション' }
+    { id = 'eminence', label = messages.main_menu.items.eminence },
+    { id = 'synthesis', label = messages.main_menu.items.synthesis },
+    { id = 'collection', label = messages.main_menu.items.collection },
+    { id = 'quest', label = messages.main_menu.items.quest },
+    { id = 'mission', label = messages.main_menu.items.mission }
 }
 
 -- 合成メニューの定義
 local synthesis_menu_items = {
-    { id = 'synthesis_storage', label = '合成倉庫', description = '合成倉庫はモンスターやショップから合成素材を入手した時に自動的に格納される倉庫です\n格納した素材が合成に可能な数になった時、合成レシピが開放されます\n開放された合成レシピから合成が可能になります\n\n合成に失敗はありません\nHQ合成にはその合成アイテムに必要なスキル+10が必要になります\nHQ2には+20、HQ3には+30が必要になります\n\n合成したアイテムはポストに届きます\n\n合成倉庫からマイバックに取り出したい時は、その項目を選んで取り出してください\n取り出したアイテムはポストに届きます\n\n取り出した素材を再び合成倉庫に移動させたい場合は\nポスト以外からマイバックへ移動する操作で自動判別されて合成倉庫に移動します\n例えばモグケースからマイバックへ移動など' },
-    { id = 'item_list', label = 'アイテム別リスト', description = 'アイテムの種別（武器、防具など）からレシピを検索します。' },
-    { id = 'guild_list', label = 'ギルド別リスト', description = 'ギルドを選んでレシピを検索します。' }
+    { id = 'synthesis_storage', label = messages.synthesis_menu.items.storage.label, description = messages.synthesis_menu.items.storage.description },
+    { id = 'item_list', label = messages.synthesis_menu.items.item_list.label, description = messages.synthesis_menu.items.item_list.description },
+    { id = 'guild_list', label = messages.synthesis_menu.items.guild_list.label, description = messages.synthesis_menu.items.guild_list.description }
 }
 
 -- 初期化
@@ -31,7 +32,7 @@ end
 -- メインメニュー取得
 function menu_manager.get_main_menu()
     current_menu = {
-        title = 'カスタムメニュー',
+        title = messages.main_menu.title,
         items = main_menu_items,
         cursor = 1,
         scroll_pos = 1,
@@ -44,7 +45,7 @@ end
 -- 合成メニューのデータ取得
 function menu_manager.get_synthesis_menu_data()
     return {
-        title = '合成',
+        title = messages.synthesis_menu.title,
         items = synthesis_menu_items
     }
 end

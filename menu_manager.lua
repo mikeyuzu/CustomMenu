@@ -136,6 +136,33 @@ function menu_manager.create_submenu(data)
     return current_menu
 end
 
+-- アイテムリストメニュー作成
+function menu_manager.create_item_list_menu(items, title)
+    local menu_items = {}
+    local menu_title = title or "アイテムリスト"
+
+    if items then
+        for _, item in ipairs(items) do
+            local item_name = item and item.name or "不明なアイテム名"
+            local item_id = item and item.id or "不明なID"
+            -- descriptionにはidを含め、必要に応じて追加情報を付与
+            local item_description = string.format("ID: %s", tostring(item_id)) 
+            table.insert(menu_items, {
+                id = "ITEM_SELECTED_" .. tostring(item_id), -- ここを修正
+                label = item_name,
+                description = item_description,
+                original_item_id = item_id -- 元のアイテムIDも保存
+            })
+        end
+    end
+
+    -- create_submenu が期待する形式でデータを返す
+    return {
+        title = menu_title,
+        items = menu_items
+    }
+end
+
 -- 戻れるか
 function menu_manager.can_go_back()
     return #menu_stack > 0

@@ -1,8 +1,12 @@
 local texts = require('texts')
 local messages = require('message')
+local param = require('param')
 local ui = {}
 
--- UI設定
+local dialog_width = 300
+local dialog_height = 120
+
+    -- UI設定
 local settings = {
     indicator = {
         pos = { x = windower.get_windower_settings().ui_x_res - 460, y = windower.get_windower_settings().ui_y_res - 40 },
@@ -253,9 +257,154 @@ function ui.update_menu_display(menu_data)
     end
 end
 
--- フレーム更新
-function ui.update()
-    -- 必要に応じてアニメーション等を実装
+-- 引き出しダイアログ表示
+local dialog_texts = {}
+local dialog_background = nil
+local dialog_button_bg = {}
+local dialog_button_texts = {} -- ボタンテキスト専用
+local quantity_text_obj = nil -- 数量テキストオブジェクトへの参照を保持
+
+-- ダイアログUI要素を破棄
+function ui.destroy_withdrawal_dialog()
+    for _, text_obj in ipairs(dialog_texts) do
+        text_obj:destroy()
+    end
+    dialog_texts = {}
+    if dialog_background then
+        dialog_background:destroy()
+        dialog_background = nil
+    end
+    for _, bg_obj in ipairs(dialog_button_bg) do
+        bg_obj:destroy()
+    end
+    dialog_button_bg = {}
+    for _, text_obj in ipairs(dialog_button_texts) do
+        text_obj:destroy()
+    end
+    dialog_button_texts = {}
+    quantity_text_obj = nil
+end
+
+-- ボタンの背景とテキストを更新する内部関数
+local function update_dialog_buttons()
+    -- 既存のボタン要素をクリア
+    for _, bg_obj in ipairs(dialog_button_bg) do
+        bg_obj:destroy()
+    end
+    dialog_button_bg = {}
+    for _, text_obj in ipairs(dialog_button_texts) do
+        text_obj:destroy()
+    end
+    dialog_button_texts = {}
+
+    local selected_button = param.get_dialog_selected_button()
+    local item = param.get_dialog_item()
+    if not item then return end
+    
+    local dialog_x = (windower.get_windower_settings().ui_x_res / 2) - (dialog_width / 2)
+    local dialog_y = (windower.get_windower_settings().ui_y_res / 2) - (dialog_height / 2)
+    local line_y = dialog_y + 10 + 50
+
+    -- ボタンの位置とサイズ
+    local button_y = line_y
+    local cancel_x = dialog_x + (dialog_width / 2) - 80
+    local withdraw_x = dialog_x + (dialog_width / 2) + 20
+    local button_width = 60
+    
+    -- 1. 背景を描画
+    local function create_button_bg(x, y, is_selected)
+        local button_bg_options = {
+            pos = { x = x, y = y },
+            bg = { alpha = 255, red = 50, green = 50, blue = 50 },
+            text = { size = 12, font = 'MS Gothic' },
+            flags = { bold = true, draggable = false }
+        }
+        if is_selected then
+            button_bg_options.bg = { alpha = 255, red = 100, green = 100, blue = 150 }
+        end
+        local button_bg = texts.new(string.rep(' ', (button_width / 6) + 1) .. '\n' .. string.rep(' ', (button_width / 6) + 1), button_bg_options)
+        button_bg:show()
+        table.insert(dialog_button_bg, button_bg)
+    end
+    create_button_bg(cancel_x, button_y, selected_button == 'cancel')
+    create_button_bg(withdraw_x, button_y, selected_button == 'withdraw')
+    
+    -- 2. テキストを描画
+    local cancel_text = texts.new('キャンセル', {
+        pos = { x = cancel_x + (button_width / 2) - 24, y = button_y + 2 + 6 },
+        text = { size = 12, font = 'MS Gothic', color = {255,255,255,255}, align = 'center' },
+        bg = { alpha = 0 }
+    })
+    table.insert(dialog_button_texts, cancel_text)
+    cancel_text:show()
+
+    local withdraw_text = texts.new('取り出す', {
+        pos = { x = withdraw_x + (button_width / 2) - 24, y = button_y + 2 + 6 },
+        text = { size = 12, font = 'MS Gothic', color = {255,255,255,255}, align = 'center' },
+        bg = { alpha = 0 }
+    })
+    table.insert(dialog_button_texts, withdraw_text)
+    withdraw_text:show()
+end
+
+-- ダイアログを初めて作成する
+function ui.create_withdrawal_dialog()
+    ui.destroy_withdrawal_dialog() -- 念のため既存のものをクリア
+
+    local item = param.get_dialog_item()
+    if not item then return end
+
+    local withdraw_quantity = param.get_dialog_withdraw_quantity()
+    local max_quantity = item.quantity
+
+    local dialog_x = (windower.get_windower_settings().ui_x_res / 2) - (dialog_width / 2)
+    local dialog_y = (windower.get_windower_settings().ui_y_res / 2) - (dialog_height / 2)
+
+    local bg_options = {
+        pos = { x = dialog_x, y = dialog_y },
+        bg = { alpha = 230, red = 0, green = 0, blue = 0 },
+        text = { size = 12, font = 'MS Gothic' },
+        flags = { bold = true, draggable = false }
+    }
+    dialog_background = texts.new(string.rep(string.rep(' ', 40) .. '\n', 7), bg_options)
+    dialog_background:show()
+
+    local line_y = dialog_y + 10
+    local text_x_offset = 15
+
+    local item_name_text = texts.new(string.format('%sを取り出しますか？', item.name), {
+        pos = { x = dialog_x + text_x_offset, y = line_y },
+        text = { size = 12, font = 'MS Gothic', color = {255,255,255,255} },
+        bg = { alpha = 0 }
+    })
+    table.insert(dialog_texts, item_name_text)
+    item_name_text:show()
+    line_y = line_y + 20
+
+    quantity_text_obj = texts.new(string.format('個数 %d/%d (上下で変更)', withdraw_quantity, max_quantity), {
+        pos = { x = dialog_x + text_x_offset, y = line_y },
+        text = { size = 12, font = 'MS Gothic', color = {255,255,255,255} },
+        bg = { alpha = 0 }
+    })
+    table.insert(dialog_texts, quantity_text_obj)
+    quantity_text_obj:show()
+    
+    update_dialog_buttons() -- 初回のボタンを描画
+end
+
+-- ダイアログの表示内容を部分的に更新
+function ui.update_withdrawal_dialog(update_type)
+    if not param.get_dialog_open() then return end
+    
+    if update_type == 'quantity' then
+        local item = param.get_dialog_item()
+        if not item or not quantity_text_obj then return end
+        local withdraw_quantity = param.get_dialog_withdraw_quantity()
+        local max_quantity = item.quantity
+        quantity_text_obj:text(string.format('個数 %d/%d (上下で変更)', withdraw_quantity, max_quantity))
+    elseif update_type == 'buttons' then
+        update_dialog_buttons()
+    end
 end
 
 return ui

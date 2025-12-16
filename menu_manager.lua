@@ -152,7 +152,9 @@ function menu_manager.create_item_list_menu(items, title)
                 label = item_name,
                 description = item_description,
                 original_item_id = item_id, -- 元のアイテムIDも保存
-                quantity = item.quantity -- ここで数量を追加
+                quantity = item.quantity, -- ここで数量を追加
+                subId = item.subId,      -- subIdも保存
+                stackSize = item.stackSize -- stackSizeも保存
             })
         end
     end

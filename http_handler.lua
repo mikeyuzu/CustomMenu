@@ -331,6 +331,32 @@ function http_handler.fetch_synergy_inventory(chara_id, callback)
     end)()
 end
 
+-- シナジーインベントリアイテム削除API呼び出し
+function http_handler.remove_synergy_inventory_item(chara_id, item_id, sub_id, usenum, quantity, callback)
+    local params = {
+        charaId = chara_id,
+        itemId = item_id,
+        subId = sub_id,
+        usenum = usenum,
+        quantity = quantity
+    }
+    local query_string = build_query_string(params)
+    local request_url = config.base_url .. '/RemoveSynergyInventoryItem?' .. query_string
+
+    coroutine.wrap(function()
+        local success, data_string, status_code, error_message = http_handler.custom_request(request_url, 'GET')
+        -- RemoveSynergyInventoryItem APIは成功/失敗のみを返すため、データは期待しない
+        -- 成功/失敗メッセージをcallbackに渡す
+        local message = nil
+        if success then
+            message = "アイテムの引き出しに成功しました。"
+        else
+            message = "アイテムの引き出しに失敗しました: " .. (error_message or "不明なエラー")
+        end
+        callback(success, message)
+    end)()
+end
+
 -- カスタムHTTPリクエスト実装例
 -- 実際に使用する場合はこちらを拡張
 function http_handler.custom_request(url_str, method, headers, body)

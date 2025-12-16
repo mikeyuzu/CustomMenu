@@ -87,12 +87,19 @@ function Close_Menu()
     windower.send_command('keyboard_blockinput 0')
 end
 
+-- ダイアログを閉じる
+function Close_Dialog()
+    param.set_dialog_open(false)
+    param.set_dialog_item(nil)
+    param.set_dialog_withdraw_quantity(0)
+    param.set_dialog_selected_button('cancel')
+    ui.destroy_withdrawal_dialog() -- UI要素を破棄
+end
+
 -- 決定ボタン処理
 function Handle_Confirm()
     local selected = menu_manager.get_selected_item()
     if not selected then return end
-
-    print(string.format("DEBUG: selected.id = %s (type: %s)", tostring(selected.id), type(selected.id)))
 
     -- ヘルパー関数: IDがAuctionHouseId（数値）かどうかをチェック
     local function is_auction_house_id(id)
@@ -140,7 +147,6 @@ function Handle_Confirm()
         end)
     elseif string.find(tostring(selected.id), '_MENU') or is_auction_house_id(selected.id) or string.find(tostring(selected.id), 'ITEM_SELECTED_') then
         local inventory_cache = param.get_synergy_inventory_cache()
-        print(string.format("DEBUG: inventory_cache status: %s", tostring(inventory_cache ~= nil and "Available" or "Nil")))
         if not inventory_cache then
             print('エラー: シナジーインベントリキャッシュがありません。')
             return
@@ -174,11 +180,27 @@ function Handle_Confirm()
 
         elseif string.find(tostring(selected.id), 'ITEM_SELECTED_') then
             -- アイテムリストから個別のアイテムが選択された場合
-            local original_item_id = selected.original_item_id or string.match(tostring(selected.id), 'ITEM_SELECTED_(%d+)')
-            print(string.format('DEBUG: アイテムが選択されました: %s (オリジナルID: %s)', selected.label, tostring(original_item_id)))
-            -- ここで選択されたアイテムに対して何らかのアクションを実行できる（例えば、そのアイテムの詳細情報を表示するなど）
-            -- 現時点では何もしないが、ログに出力して動作を確認する。
-            -- Close_Menu() -- メニューを閉じる場合はここで呼ぶ
+            local original_item_id_str = string.match(tostring(selected.id), 'ITEM_SELECTED_(%d+)')
+            local original_item_id = tonumber(original_item_id_str)
+            local selected_item_data = nil
+            
+            -- キャッシュから完全なアイテムデータを見つける
+            for _, item_data in ipairs(inventory_cache) do
+                if item_data.id == original_item_id and item_data.subId == selected.subId then
+                    selected_item_data = item_data
+                    break
+                end
+            end
+
+            if selected_item_data then
+                param.set_dialog_open(true)
+                param.set_dialog_item(selected_item_data)
+                param.set_dialog_withdraw_quantity(1) -- 初期値は1個
+                param.set_dialog_selected_button('cancel') -- 初期選択はキャンセル
+                ui.create_withdrawal_dialog() -- UIに描画を通知
+            else
+                print(string.format('ERROR: 選択されたアイテムのデータが見つかりません (ID: %s, SubID: %s)', tostring(original_item_id), tostring(selected.subId)))
+            end
         else -- 'WEAPON_MENU'のようなサブメニューカテゴリの場合
             local generated_menu = synergy_category_generator.generate_menu_data(inventory_cache, selected.id)
             if #generated_menu.items == 0 and generated_menu.empty_message then
@@ -211,12 +233,68 @@ end
 
 --キャンセルボタン処理
 function Handle_Cancel()
-    if menu_manager.can_go_back() then
+    if param.get_dialog_open() then
+        Close_Dialog()
+    elseif menu_manager.can_go_back() then
         param.set_current_menu(menu_manager.go_back())
         ui.show_menu_list(param.get_current_menu())
     else
         Close_Menu()
     end
+end
+
+-- 引き出し処理
+function Handle_Withdraw()
+    local item = param.get_dialog_item()
+    local chara_id = param.get_chara_id()
+    local usenum = param.get_dialog_withdraw_quantity()
+
+    if not item or not chara_id or usenum <= 0 then
+        print('ERROR: 引き出しに必要な情報が不足しています。')
+        Close_Dialog()
+        return
+    end
+
+    http_handler.remove_synergy_inventory_item(chara_id, item.id, item.subId, usenum, item.quantity, function(success, message)
+        if success then
+            print('SUCCESS: アイテム ' .. item.name .. ' を ' .. usenum .. ' 個引き出しました。')
+            -- 成功したら、シナジーインベントリキャッシュを更新するために再フェッチ
+            http_handler.fetch_synergy_inventory(chara_id, function(fetch_success, data, error_message)
+                if fetch_success and data then
+                    param.set_synergy_inventory_cache(data)
+                    -- 現在のメニューを再生成して表示を更新
+                    local current_menu_data = param.get_current_menu()
+                    if current_menu_data then
+                        -- 現在のメニューがアイテムリストの場合、フィルタリングを再適用して表示を更新
+                        if string.find(tostring(current_menu_data.items[1].id), 'ITEM_SELECTED_') then
+                            local selected_auction_house_id = current_menu_data.parent_id -- item_list_menuの作成時に親IDを保存しておく必要があるかも
+                            -- 現状では簡易的に、メインのカテゴリメニューに戻るか、再度アイテムリストを生成する
+                            -- ここでは簡易的に、一つ上の階層に戻る (カテゴリ選択に戻る)
+                            if menu_manager.can_go_back() then
+                                param.set_current_menu(menu_manager.go_back())
+                                ui.show_menu_list(param.get_current_menu())
+                            else
+                                Close_Menu()
+                            end
+                        else
+                             -- それ以外のカテゴリメニューの場合は、そのまま再生成
+                            local generated_menu = synergy_category_generator.generate_menu_data(data, current_menu_data.id)
+                            param.set_current_menu(menu_manager.create_submenu(generated_menu))
+                            ui.show_menu_list(param.get_current_menu())
+                        end
+                    else
+                        Close_Menu()
+                    end
+                else
+                    print('ERROR: シナジーインベントリの再フェッチに失敗しました: ' .. (error_message or '不明なエラー'))
+                    Close_Menu()
+                end
+            end)
+        else
+            print('ERROR: アイテム ' .. item.name .. ' の引き出しに失敗しました: ' .. (message or '不明なエラー'))
+        end
+        Close_Dialog()
+    end)
 end
 
 -- コマンド処理
@@ -253,15 +331,58 @@ windower.register_event('keyboard', function(dik, down, flags, blocked)
         return true
     end
 
-    if not param.get_menu_open() or not param.get_input_blocked() then
-        return false
-    end
-
     if not down then
         return true
     end
 
     local action = input_handler.process_key(dik)
+
+    -- ダイアログが開いている場合の処理
+    if param.get_dialog_open() then
+        local item = param.get_dialog_item()
+        local current_quantity = param.get_dialog_withdraw_quantity()
+        local max_quantity = item.quantity
+        local stack_size = item.stackSize
+        local withdraw_limit = math.min(max_quantity, stack_size)
+
+        if action == 'up' then
+            if current_quantity == withdraw_limit then
+                param.set_dialog_withdraw_quantity(1)
+            else
+                param.set_dialog_withdraw_quantity(math.min(current_quantity + 1, withdraw_limit))
+            end
+            ui.update_withdrawal_dialog('quantity')
+        elseif action == 'down' then
+            if current_quantity == 1 then
+                param.set_dialog_withdraw_quantity(withdraw_limit)
+            else
+                param.set_dialog_withdraw_quantity(math.max(current_quantity - 1, 1))
+            end
+            ui.update_withdrawal_dialog('quantity')
+        elseif action == 'left' or action == 'right' then
+            -- ボタンの選択を切り替える
+            if param.get_dialog_selected_button() == 'cancel' then
+                param.set_dialog_selected_button('withdraw')
+            else
+                param.set_dialog_selected_button('cancel')
+            end
+            ui.update_withdrawal_dialog('buttons')
+        elseif action == 'confirm' then
+            if param.get_dialog_selected_button() == 'cancel' then
+                Close_Dialog()
+            else
+                Handle_Withdraw()
+            end
+        elseif action == 'cancel' then
+            Close_Dialog()
+        end
+        return true -- ダイアログがアクティブな場合は他の入力処理をブロック
+    end
+
+    -- メニューが開いていない、または入力がブロックされていない場合は、以降の処理を行わない
+    if not param.get_menu_open() or not param.get_input_blocked() then
+        return false
+    end
 
     if action == 'up' then
         menu_manager.move_cursor(-1)
@@ -300,6 +421,4 @@ windower.register_event('prerender', function()
         -- イベント中/カットシーン中
         return
     end
-
-    ui.update()
 end)

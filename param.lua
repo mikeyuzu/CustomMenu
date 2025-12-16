@@ -7,7 +7,12 @@ local state = {
     input_blocked = false,
     input_delay_frames = 0,
     synergy_inventory_cache = nil, -- 新しいキャッシュ用
-    chara_id = nil -- charaId用
+    chara_id = nil, -- charaId用
+    dialog_open = false, -- ダイアログが開いているか
+    dialog_item = nil,   -- ダイアログで扱うアイテム情報
+    dialog_withdraw_quantity = 0, -- ダイアログで選択されている引き出し数
+    dialog_selected_button = 'cancel', -- ダイアログで選択されているボタン ('cancel' or 'withdraw')
+    dialog_needs_redraw = false -- ダイアログの再描画が必要か
 }
 
 function param.get_has_notification()
@@ -65,6 +70,39 @@ end
 
 function param.set_chara_id(id)
     state.chara_id = id
+end
+
+-- ダイアログ関連のGetter/Setter
+function param.get_dialog_open()
+    return state.dialog_open
+end
+
+function param.set_dialog_open(open)
+    state.dialog_open = open
+end
+
+function param.get_dialog_item()
+    return state.dialog_item
+end
+
+function param.set_dialog_item(item)
+    state.dialog_item = item
+end
+
+function param.get_dialog_withdraw_quantity()
+    return state.dialog_withdraw_quantity
+end
+
+function param.set_dialog_withdraw_quantity(quantity)
+    state.dialog_withdraw_quantity = quantity
+end
+
+function param.get_dialog_selected_button()
+    return state.dialog_selected_button
+end
+
+function param.set_dialog_selected_button(button)
+    state.dialog_selected_button = button
 end
 
 param.auction_house_ids = {

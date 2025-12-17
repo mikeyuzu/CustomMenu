@@ -12,11 +12,19 @@ local state = {
     dialog_item = nil,   -- ダイアログで扱うアイテム情報
     dialog_withdraw_quantity = 0, -- ダイアログで選択されている引き出し数
     dialog_selected_button = 'cancel', -- ダイアログで選択されているボタン ('cancel' or 'withdraw')
-    dialog_needs_redraw = false -- ダイアログの再描画が必要か
+    dialog_needs_redraw = false, -- ダイアログの再描画が必要か
+    success_dialog_open = false -- 完了ダイアログが開いているか
 }
 
 function param.get_has_notification()
     return state.has_notification
+end
+function param.get_success_dialog_open()
+    return state.success_dialog_open
+end
+
+function param.set_success_dialog_open(open)
+    state.success_dialog_open = open
 end
 
 function param.set_has_notification(has_notification)

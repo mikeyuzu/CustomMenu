@@ -130,7 +130,10 @@ function menu_manager.create_submenu(data)
         items = data.items or {},
         cursor = 1,
         scroll_pos = 1,
-        page_size = 10
+        page_size = 10,
+        id = data.id or nil,
+        -- dataにparent_idがあればそれを使い、なければスタックの最後（＝親）のidを使う
+        parent_id = data.parent_id or (menu_stack[#menu_stack] and menu_stack[#menu_stack].id or nil)
     }
 
     return current_menu
@@ -140,6 +143,8 @@ end
 function menu_manager.create_item_list_menu(items, title)
     local menu_items = {}
     local menu_title = title or "アイテムリスト"
+    
+    local parent_id_for_item_list = current_menu and current_menu.id or nil -- アイテムリストの親は現在のメニュー
 
     if items then
         for _, item in ipairs(items) do
@@ -162,8 +167,30 @@ function menu_manager.create_item_list_menu(items, title)
     -- create_submenu が期待する形式でデータを返す
     return {
         title = menu_title,
-        items = menu_items
+        items = menu_items,
+        id = "ITEM_LIST_MENU", -- アイテムリスト自体のIDを明確にする
+        parent_id = parent_id_for_item_list -- 親メニューのIDを保存
     }
+end
+
+-- 現在のメニューをデータから直接作成・更新 (スタック操作なし)
+function menu_manager.create_current_menu_from_data(data)
+    local prev_cursor = current_menu and current_menu.cursor or 1
+    local prev_scroll_pos = current_menu and current_menu.scroll_pos or 1
+    local prev_page_size = current_menu and current_menu.page_size or 10
+
+    current_menu = {
+        title = data.title or 'サブメニュー',
+        items = data.items or {},
+        cursor = math.min(prev_cursor, #data.items > 0 and #data.items or 1), -- カーソル位置を調整
+        scroll_pos = math.min(prev_scroll_pos, #data.items > 0 and #data.items or 1), -- スクロール位置を調整
+        page_size = prev_page_size,
+        id = data.id or nil,
+        parent_id = data.parent_id or nil
+    }
+
+    Adjust_Scroll() -- 新しいアイテムリストに合わせてスクロール位置を調整
+    return current_menu
 end
 
 -- 戻れるか

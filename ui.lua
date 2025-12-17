@@ -339,7 +339,7 @@ local function update_dialog_buttons()
     cancel_text:show()
 
     local withdraw_text = texts.new('取り出す', {
-        pos = { x = withdraw_x + (button_width / 2) - 24, y = button_y + 2 + 6 },
+        pos = { x = withdraw_x + (button_width / 2) - 16, y = button_y + 2 + 6 },
         text = { size = 12, font = 'MS Gothic', color = {255,255,255,255}, align = 'center' },
         bg = { alpha = 0 }
     })
@@ -356,6 +356,9 @@ function ui.create_withdrawal_dialog()
 
     local withdraw_quantity = param.get_dialog_withdraw_quantity()
     local max_quantity = item.quantity
+    if item.stackSize < item.quantity then
+        max_quantity = item.stackSize
+    end
 
     local dialog_x = (windower.get_windower_settings().ui_x_res / 2) - (dialog_width / 2)
     local dialog_y = (windower.get_windower_settings().ui_y_res / 2) - (dialog_height / 2)
@@ -401,10 +404,89 @@ function ui.update_withdrawal_dialog(update_type)
         if not item or not quantity_text_obj then return end
         local withdraw_quantity = param.get_dialog_withdraw_quantity()
         local max_quantity = item.quantity
+        if item.stackSize < item.quantity then
+            max_quantity = item.stackSize
+        end
         quantity_text_obj:text(string.format('個数 %d/%d (上下で変更)', withdraw_quantity, max_quantity))
     elseif update_type == 'buttons' then
         update_dialog_buttons()
     end
 end
+
+-- 完了ダイアログのUI要素
+local success_dialog_texts = {}
+local success_dialog_background = nil
+local success_dialog_button_bg = nil
+local success_dialog_button_text = nil
+
+-- 完了ダイアログを破棄
+function ui.destroy_success_dialog()
+    for _, text_obj in ipairs(success_dialog_texts) do
+        text_obj:destroy()
+    end
+    success_dialog_texts = {}
+    if success_dialog_background then
+        success_dialog_background:destroy()
+        success_dialog_background = nil
+    end
+    if success_dialog_button_bg then
+        success_dialog_button_bg:destroy()
+        success_dialog_button_bg = nil
+    end
+    if success_dialog_button_text then
+        success_dialog_button_text:destroy()
+        success_dialog_button_text = nil
+    end
+end
+
+-- 完了ダイアログを作成
+function ui.create_success_dialog(message_text)
+    ui.destroy_success_dialog() -- 既存のダイアログをクリア
+
+    local dialog_x = (windower.get_windower_settings().ui_x_res / 2) - (dialog_width / 2)
+    local dialog_y = (windower.get_windower_settings().ui_y_res / 2) - (dialog_height / 2)
+
+    -- 背景
+    local bg_options = {
+        pos = { x = dialog_x, y = dialog_y },
+        bg = { alpha = 230, red = 0, green = 0, blue = 0 },
+        text = { size = 12, font = 'MS Gothic' },
+        flags = { bold = true, draggable = false }
+    }
+    success_dialog_background = texts.new(string.rep(string.rep(' ', 40) .. '\n', 7), bg_options)
+    success_dialog_background:show()
+
+    -- メッセージテキスト
+    local message_obj = texts.new(message_text, {
+        pos = { x = dialog_x + 15, y = dialog_y + 20 },
+        text = { size = 12, font = 'MS Gothic', color = {255,255,255,255} },
+        bg = { alpha = 0 }
+    })
+    table.insert(success_dialog_texts, message_obj)
+    message_obj:show()
+
+    -- OKボタン
+    local button_width = 60
+    local button_x = dialog_x + (dialog_width / 2) - (button_width / 2)
+    local button_y = dialog_y + dialog_height - 48
+
+    -- ボタン背景 (選択状態)
+    success_dialog_button_bg = texts.new(string.rep(' ', (button_width / 6) + 1) .. '\n' .. string.rep(' ', (button_width / 6) + 1), {
+        pos = { x = button_x, y = button_y },
+        bg = { alpha = 255, red = 100, green = 100, blue = 150 }, -- 選択色
+        text = { size = 12, font = 'MS Gothic' },
+        flags = { bold = true, draggable = false }
+    })
+    success_dialog_button_bg:show()
+
+    -- ボタンテキスト
+    success_dialog_button_text = texts.new(messages.ok_button, {
+        pos = { x = button_x + (button_width / 2) + 6, y = button_y + 2 + 6 },
+        text = { size = 12, font = 'MS Gothic', color = {255,255,255,255}, align = 'center' },
+        bg = { alpha = 0 }
+    })
+    success_dialog_button_text:show()
+end
+
 
 return ui

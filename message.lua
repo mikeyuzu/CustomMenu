@@ -39,7 +39,10 @@ local messages = {
         open = '  //cmenu open  - メニューを開く',
         close = '  //cmenu close - メニューを閉じる',
         notify = '  //cmenu notify - 通知を切り替え(デバッグ用)',
-    }
+    },
+
+    retrieval_success = '%sを取り出しました。\nポストから受け取ってください。',
+    ok_button = 'OK',
 }
 
 return messages

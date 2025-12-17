@@ -243,6 +243,57 @@ function Handle_Cancel()
     end
 end
 
+-- インベントリ更新後にメニューを再描画する
+function Refresh_Menu_After_Inventory_Update(updated_cache)
+    param.set_synergy_inventory_cache(updated_cache)
+    local current_menu_data = param.get_current_menu()
+
+    if not current_menu_data then
+        Close_Menu()
+        return
+    end
+
+    -- 現在のメニューがアイテムリストの場合
+    if current_menu_data.id == "ITEM_LIST_MENU" then
+        -- アイテムリストの親ID（カテゴリID）を使って、そのカテゴリのアイテムを再生成
+        local category_id = current_menu_data.parent_id
+        if category_id then
+            -- カテゴリ内の全アイテムをフィルタリング
+            local filtered_items = {}
+            for _, item in ipairs(updated_cache) do
+                -- 親IDがauctionHouseIdに該当する場合のフィルタリング
+                if item.auctionHouseId == category_id then
+                    table.insert(filtered_items, item)
+                end
+            end
+
+            local menu_title = current_menu_data.title or "アイテムリスト"
+            local item_list_menu_data = menu_manager.create_item_list_menu(filtered_items, menu_title)
+            
+            -- 現在のメニューを直接更新 (スタック操作はしない)
+            param.set_current_menu(menu_manager.create_current_menu_from_data(item_list_menu_data))
+            ui.show_menu_list(param.get_current_menu())
+        else
+            -- parent_idがない場合は、安全のため一つ前のカテゴリに戻る
+            -- ただし、ITEM_LIST_MENUは必ず親カテゴリを持つはずなので、このパスは基本的には通らない想定
+            if menu_manager.can_go_back() then
+                local prev_menu = menu_manager.go_back()
+                local regenerated_menu = synergy_category_generator.generate_menu_data(updated_cache, prev_menu.id)
+                param.set_current_menu(menu_manager.create_submenu(regenerated_menu))
+                ui.show_menu_list(param.get_current_menu())
+            else
+                Close_Menu()
+            end
+        end
+    else
+        -- 通常のカテゴリメニューの再生成
+        local generated_menu = synergy_category_generator.generate_menu_data(updated_cache, current_menu_data.id)
+        param.set_current_menu(menu_manager.create_submenu(generated_menu))
+        ui.show_menu_list(param.get_current_menu())
+    end
+end
+
+
 -- 引き出し処理
 function Handle_Withdraw()
     local item = param.get_dialog_item()
@@ -256,44 +307,18 @@ function Handle_Withdraw()
     end
 
     http_handler.remove_synergy_inventory_item(chara_id, item.id, item.subId, usenum, item.quantity, function(success, message)
+        Close_Dialog() -- まず引き出しダイアログを閉じる
+
         if success then
             print('SUCCESS: アイテム ' .. item.name .. ' を ' .. usenum .. ' 個引き出しました。')
-            -- 成功したら、シナジーインベントリキャッシュを更新するために再フェッチ
-            http_handler.fetch_synergy_inventory(chara_id, function(fetch_success, data, error_message)
-                if fetch_success and data then
-                    param.set_synergy_inventory_cache(data)
-                    -- 現在のメニューを再生成して表示を更新
-                    local current_menu_data = param.get_current_menu()
-                    if current_menu_data then
-                        -- 現在のメニューがアイテムリストの場合、フィルタリングを再適用して表示を更新
-                        if string.find(tostring(current_menu_data.items[1].id), 'ITEM_SELECTED_') then
-                            local selected_auction_house_id = current_menu_data.parent_id -- item_list_menuの作成時に親IDを保存しておく必要があるかも
-                            -- 現状では簡易的に、メインのカテゴリメニューに戻るか、再度アイテムリストを生成する
-                            -- ここでは簡易的に、一つ上の階層に戻る (カテゴリ選択に戻る)
-                            if menu_manager.can_go_back() then
-                                param.set_current_menu(menu_manager.go_back())
-                                ui.show_menu_list(param.get_current_menu())
-                            else
-                                Close_Menu()
-                            end
-                        else
-                             -- それ以外のカテゴリメニューの場合は、そのまま再生成
-                            local generated_menu = synergy_category_generator.generate_menu_data(data, current_menu_data.id)
-                            param.set_current_menu(menu_manager.create_submenu(generated_menu))
-                            ui.show_menu_list(param.get_current_menu())
-                        end
-                    else
-                        Close_Menu()
-                    end
-                else
-                    print('ERROR: シナジーインベントリの再フェッチに失敗しました: ' .. (error_message or '不明なエラー'))
-                    Close_Menu()
-                end
-            end)
+            -- 完了ダイアログを表示
+            local success_message = string.format(messages.retrieval_success, item.name)
+            ui.create_success_dialog(success_message)
+            param.set_success_dialog_open(true)
         else
             print('ERROR: アイテム ' .. item.name .. ' の引き出しに失敗しました: ' .. (message or '不明なエラー'))
+            -- 必要ならここでエラーダイアログを表示
         end
-        Close_Dialog()
     end)
 end
 
@@ -336,6 +361,30 @@ windower.register_event('keyboard', function(dik, down, flags, blocked)
     end
 
     local action = input_handler.process_key(dik)
+
+    -- 完了ダイアログが開いている場合の処理
+    if param.get_success_dialog_open() then
+        if action == 'confirm' then
+            ui.destroy_success_dialog()
+            param.set_success_dialog_open(false)
+
+            -- 在庫を再フェッチしてメニューを更新
+            local chara_id = param.get_chara_id()
+            if chara_id then
+                http_handler.fetch_synergy_inventory(chara_id, function(fetch_success, data, error_message)
+                    if fetch_success and data then
+                        Refresh_Menu_After_Inventory_Update(data)
+                    else
+                        print('ERROR: シナジーインベントリの再フェッチに失敗しました: ' .. (error_message or '不明なエラー'))
+                        Close_Menu()
+                    end
+                end)
+            else
+                Close_Menu() -- chara_idがなければメニューを閉じる
+            end
+        end
+        return true -- 他の入力をブロック
+    end
 
     -- ダイアログが開いている場合の処理
     if param.get_dialog_open() then

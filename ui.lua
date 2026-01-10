@@ -25,7 +25,21 @@ local settings = {
         text = { size = 12, font = 'MS Gothic', stroke = { width = 2, alpha = 255, red = 0, green = 0, blue = 0 } },
         bg = { alpha = 200, red = 20, green = 20, blue = 40 },
         flags = { bold = false, draggable = false }
-    }
+    },
+    synthesis_result_panel = { -- サブウィンドウ1 (完成品情報)
+        pos = { x = 500, y = 100 }, -- メインメニューの右側に配置
+        text = { size = 12, font = 'MS Gothic', stroke = { width = 2, alpha = 255, red = 0, green = 0, blue = 0 } },
+        bg = { alpha = 200, red = 20, green = 40, blue = 20 }, -- 緑系の色
+        flags = { bold = false, draggable = false },
+        width = 360, -- 固定幅
+    },
+    synthesis_ingredient_panel = { -- サブウィンドウ2 (素材情報)
+        pos = { x = 910, y = 100 }, -- サブウィンドウ1の右側に配置 (400 + 250 + 10 = 660)
+        text = { size = 12, font = 'MS Gothic', stroke = { width = 2, alpha = 255, red = 0, green = 0, blue = 0 } },
+        bg = { alpha = 200, red = 40, green = 20, blue = 20 }, -- 赤系の色
+        flags = { bold = false, draggable = false },
+        width = 250, -- 固定幅
+    },
 }
 
 -- アイテム名と数量の間のスペース
@@ -40,6 +54,13 @@ local menu_quantities = {} -- 数量表示用のテキストオブジェクト
 local menu_background = nil
 local cursor_highlight_background = nil
 local description_text = nil
+
+-- 合成レシピ詳細表示用
+local synthesis_result_panel_texts = {}
+local synthesis_result_panel_background = nil
+
+local synthesis_ingredient_panel_texts = {}
+local synthesis_ingredient_panel_background = nil
 
 -- 初期化
 function ui.initialize()
@@ -73,6 +94,7 @@ function ui.cleanup()
         description_text:destroy()
         description_text = nil
     end
+    ui.hide_synthesis_details() -- サブウィンドウもクリーンアップ時に非表示にする
 end
 
 -- インジケーター表示
@@ -269,6 +291,193 @@ function ui.update_menu_display(menu_data)
         description_text = texts.new(selected_item.description, description_options)
         description_text:show()
     end
+end
+
+-- 汎用パネル更新ヘルパー関数
+-- panel_settings: パネルのUI設定 (pos, text, bg, flags, widthなど)
+-- panel_texts_table: パネル内のテキストオブジェクトを格納するテーブル (local変数)
+-- panel_background: パネルの背景オブジェクト (local変数)
+-- content_lines: 表示するテキスト行のテーブル (stringの配列)
+-- justify: テキストの寄せ方 (省略可能、'left', 'center', 'right')
+-- 戻り値: 新しく作成された背景オブジェクト
+local function _update_panel(panel_settings, panel_texts_table, panel_background, content_lines, justify)
+    -- 既存のUIオブジェクトをすべて破棄
+    for i = #panel_texts_table, 1, -1 do
+        panel_texts_table[i]:destroy()
+        table.remove(panel_texts_table, i)
+    end
+
+    if panel_background then
+        panel_background:destroy()
+        panel_background = nil
+    end
+
+    if not content_lines or #content_lines == 0 then
+        return nil -- 何も表示しない場合はnilを返す
+    end
+
+    local line_height = panel_settings.text.size + 4
+    local panel_height = #content_lines * line_height + 10 -- 上下のパディング
+
+    -- 背景の描画
+    local max_content_width = 0
+    for _, line in ipairs(content_lines) do
+        -- Luaはマルチバイト文字を1として数えるため、半角換算する
+        local len = 0
+        for i = 1, #line do
+            local byte = string.byte(line, i)
+            if byte > 127 then
+                len = len + 2 -- 全角は2文字分としてカウント
+            else
+                len = len + 1 -- 半角は1文字分
+            end
+        end
+
+        if len > max_content_width then
+            max_content_width = len
+        end
+    end
+
+    -- 固定幅を使用するか、コンテンツ幅を計算するか
+    local bg_width = panel_settings.width or (max_content_width * (panel_settings.text.size * 0.5) + 20) -- フォントサイズに応じて調整 + パディング
+    local bg_height = panel_height
+
+    local bg_options = {
+        pos = { x = panel_settings.pos.x, y = panel_settings.pos.y },
+        bg = panel_settings.bg,
+        text = panel_settings.text,
+        flags = panel_settings.flags,
+    }
+    -- 背景はtextsオブジェクトで、スペースを充填して描画
+    local space_count = math.floor(bg_width / (panel_settings.text.size * 0.6))
+    if space_count < 1 then space_count = 1 end
+    local line_count = math.ceil(bg_height / line_height)
+    if line_count < 1 then line_count = 1 end
+    local space_block = ""
+    for i = 1, line_count do
+        space_block = space_block .. string.rep(' ', space_count) .. '\n'
+    end
+
+    local new_panel_background = texts.new(space_block, bg_options)
+    new_panel_background:show()
+
+    -- テキストの描画
+    local current_y = panel_settings.pos.y + 5 -- 上パディング
+    for _, line in ipairs(content_lines) do
+        -- settings.textをディープコピーする
+        local text_setting = {
+            size = panel_settings.text.size,
+            font = panel_settings.text.font,
+            stroke = {
+                width = panel_settings.text.stroke.width,
+                alpha = panel_settings.text.stroke.alpha,
+                red = panel_settings.text.stroke.red,
+                green = panel_settings.text.stroke.green,
+                blue = panel_settings.text.stroke.blue,
+            },
+            justify = panel_settings.text.justify,
+        }
+
+        local text_options = {
+            pos = { x = panel_settings.pos.x + 10, y = current_y }, -- 左パディング
+            text = text_setting,
+            bg = { alpha = 0, red = 0, green = 0, blue = 0 }, -- テキスト背景は透明
+            flags = panel_settings.flags,
+        }
+        if justify then
+            text_options.text.justify = justify
+            if justify == 'center' then
+                text_options.pos.x = panel_settings.pos.x + bg_width / 2
+            elseif justify == 'right' then
+                text_options.pos.x = panel_settings.pos.x + bg_width - 10
+            end
+        end
+
+        local text_obj = texts.new(line, text_options)
+        table.insert(panel_texts_table, text_obj)
+        text_obj:show()
+
+        current_y = current_y + line_height
+    end
+    
+    return new_panel_background
+end
+
+-- 合成レシピ詳細表示
+function ui.show_synthesis_details(recipe)
+    -- 説明文をフォーマットして追加するヘルパー関数
+    local function add_description_lines(lines_table, description)
+        description = description or "説明なし"
+        local lines = description:split('\n')
+
+        if #lines == 0 then
+            table.insert(lines_table, "　")
+            return
+        end
+
+        -- 1行目をテーブルに追加
+        table.insert(lines_table, "　" .. lines[1])
+
+        -- 2行目以降を処理してテーブルに追加
+        for i = 2, #lines do
+            local line = lines[i]
+            if line ~= "" then
+                -- 抽出したインデントを2行目以降に追加
+                table.insert(lines_table, "　" .. line)
+            end
+        end
+
+        -- 最後に改行を入れる
+        table.insert(lines_table, "")
+    end
+
+    -- 完成品パネルの表示
+    local result_lines = {}
+    if recipe.craftRank and recipe.craftRank[1] then
+        table.insert(result_lines, string.format("木工%d", recipe.craftRank[1]))
+    else
+        table.insert(result_lines, "スキル不明")
+    end
+    table.insert(result_lines, "エンターで合成する")
+    table.insert(result_lines, "【完成品】")
+
+    if recipe.result then
+        table.insert(result_lines, string.format("NQ %s(%d)", recipe.result.name, recipe.result.quantity or 1))
+        add_description_lines(result_lines, recipe.result.description)
+    end
+    if recipe.resultHQ1 then
+        table.insert(result_lines, string.format("HQ1 %s(%d)", recipe.resultHQ1.name, recipe.resultHQ1.quantity or 1))
+        add_description_lines(result_lines, recipe.resultHQ1.description)
+    end
+    if recipe.resultHQ2 then
+        table.insert(result_lines, string.format("HQ2 %s(%d)", recipe.resultHQ2.name, recipe.resultHQ2.quantity or 1))
+        add_description_lines(result_lines, recipe.resultHQ2.description)
+    end
+    if recipe.resultHQ3 then
+        table.insert(result_lines, string.format("HQ3 %s(%d)", recipe.resultHQ3.name, recipe.resultHQ3.quantity or 1))
+        add_description_lines(result_lines, recipe.resultHQ3.description)
+    end
+    synthesis_result_panel_background = _update_panel(settings.synthesis_result_panel, synthesis_result_panel_texts, synthesis_result_panel_background, result_lines, 'left')
+
+    -- 素材パネルの表示
+    local ingredient_lines = {}
+    table.insert(ingredient_lines, "【素材】")
+    if recipe.crystal then
+        table.insert(ingredient_lines, string.format("%s(%d/%d)", recipe.crystal.name, 0, recipe.crystal.quantity or 1))
+    end
+    if recipe.ingredient then
+        for _, ing in ipairs(recipe.ingredient) do
+            -- 所持数は仮で0/必要数を表示
+            table.insert(ingredient_lines, string.format("%s(%d/%d)", ing.name, 0, ing.quantity or 1))
+        end
+    end
+    synthesis_ingredient_panel_background = _update_panel(settings.synthesis_ingredient_panel, synthesis_ingredient_panel_texts, synthesis_ingredient_panel_background, ingredient_lines, 'left')
+end
+
+-- 合成レシピ詳細非表示
+function ui.hide_synthesis_details()
+    synthesis_result_panel_background = _update_panel(settings.synthesis_result_panel, synthesis_result_panel_texts, synthesis_result_panel_background, nil)
+    synthesis_ingredient_panel_background = _update_panel(settings.synthesis_ingredient_panel, synthesis_ingredient_panel_texts, synthesis_ingredient_panel_background, nil)
 end
 
 -- 引き出しダイアログ表示

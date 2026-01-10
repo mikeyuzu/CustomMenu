@@ -78,6 +78,7 @@ function Close_Menu()
     param.set_menu_open(false)
     param.set_current_menu(nil)
     ui.hide_menu_list()
+    ui.hide_synthesis_details() -- サブウィンドウを非表示にする
     ui.show_indicator() -- インジケーターを再表示
     if param.get_input_blocked() then
         input_handler.unblock_game_input()
@@ -148,7 +149,7 @@ local function fetch_and_display_synthesis_recipes(guild_id, rank)
             if #data > 0 then
                 for _, recipe in ipairs(data) do
                     if recipe.result and recipe.result.name then
-                        table.insert(recipe_items, {id = 'RECIPE_ITEM_' .. tostring(recipe.id), label = recipe.result.name})
+                        table.insert(recipe_items, {id = 'RECIPE_ITEM_' .. tostring(recipe.id), label = recipe.result.name, data = recipe})
                     end
                 end
             end
@@ -165,6 +166,11 @@ local function fetch_and_display_synthesis_recipes(guild_id, rank)
 
             param.set_current_menu(menu_manager.create_submenu(recipe_list_menu_data))
             ui.show_menu_list(param.get_current_menu())
+
+            -- 最初のアイテムの詳細をデフォルトで表示
+            if data and #data > 0 then
+                ui.show_synthesis_details(data[1])
+            end
         else
             print('Failed to load synthesis recipes: ' .. (error_message or 'Unknown error'))
         end
@@ -203,6 +209,10 @@ function Handle_Confirm()
                 fetch_and_display_synthesis_recipes(guild_id, rank)
             end
         end
+        return
+    elseif string.find(tostring(selected.id), 'RECIPE_ITEM_') then
+        -- レシピアイテムが選択されたら合成を実行する（将来のタスク）
+        -- 今回はエンターキーで何もしない
         return
     elseif selected.id == 'synthesis' then
         local synthesis_menu_data = menu_manager.get_synthesis_menu_data()
@@ -335,6 +345,7 @@ function Handle_Cancel()
         Close_Dialog()
     elseif menu_manager.can_go_back() then
         param.set_current_menu(menu_manager.go_back())
+        ui.hide_synthesis_details() -- 先に非表示にする
         ui.show_menu_list(param.get_current_menu())
     else
         Close_Menu()
@@ -541,16 +552,48 @@ windower.register_event('keyboard', function(dik, down, flags, blocked)
 
     if action == 'up' then
         menu_manager.move_cursor(-1)
+        ui.hide_synthesis_details() -- 先に非表示にする
         ui.update_menu_display(param.get_current_menu())
+        local current_menu = param.get_current_menu()
+        if current_menu and current_menu.items and #current_menu.items > 0 and current_menu.items[1].id and string.find(current_menu.items[1].id, 'RECIPE_ITEM_') then
+            local selected = menu_manager.get_selected_item()
+            if selected and selected.data then
+                ui.show_synthesis_details(selected.data)
+            end
+        end
     elseif action == 'down' then
         menu_manager.move_cursor(1)
+        ui.hide_synthesis_details() -- 先に非表示にする
         ui.update_menu_display(param.get_current_menu())
+        local current_menu = param.get_current_menu()
+        if current_menu and current_menu.items and #current_menu.items > 0 and current_menu.items[1].id and string.find(current_menu.items[1].id, 'RECIPE_ITEM_') then
+            local selected = menu_manager.get_selected_item()
+            if selected and selected.data then
+                ui.show_synthesis_details(selected.data)
+            end
+        end
     elseif action == 'left' then
         menu_manager.page_up()
+        ui.hide_synthesis_details() -- 先に非表示にする
         ui.update_menu_display(param.get_current_menu())
+        local current_menu = param.get_current_menu()
+        if current_menu and current_menu.items and #current_menu.items > 0 and current_menu.items[1].id and string.find(current_menu.items[1].id, 'RECIPE_ITEM_') then
+            local selected = menu_manager.get_selected_item()
+            if selected and selected.data then
+                ui.show_synthesis_details(selected.data)
+            end
+        end
     elseif action == 'right' then
         menu_manager.page_down()
+        ui.hide_synthesis_details() -- 先に非表示にする
         ui.update_menu_display(param.get_current_menu())
+        local current_menu = param.get_current_menu()
+        if current_menu and current_menu.items and #current_menu.items > 0 and current_menu.items[1].id and string.find(current_menu.items[1].id, 'RECIPE_ITEM_') then
+            local selected = menu_manager.get_selected_item()
+            if selected and selected.data then
+                ui.show_synthesis_details(selected.data)
+            end
+        end
     elseif action == 'confirm' then
         Handle_Confirm()
     elseif action == 'cancel' then

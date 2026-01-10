@@ -463,12 +463,11 @@ function ui.show_synthesis_details(recipe)
     local ingredient_lines = {}
     table.insert(ingredient_lines, "【素材】")
     if recipe.crystal then
-        table.insert(ingredient_lines, string.format("%s(%d/%d)", recipe.crystal.name, 0, recipe.crystal.quantity or 1))
+        table.insert(ingredient_lines, string.format("%s(%d/%d)", recipe.crystal.name, recipe.crystal.possession or 0, recipe.crystal.quantity or 1))
     end
     if recipe.ingredient then
         for _, ing in ipairs(recipe.ingredient) do
-            -- 所持数は仮で0/必要数を表示
-            table.insert(ingredient_lines, string.format("%s(%d/%d)", ing.name, 0, ing.quantity or 1))
+            table.insert(ingredient_lines, string.format("%s(%d/%d)", ing.name, ing.possession or 0, ing.quantity or 1))
         end
     end
     synthesis_ingredient_panel_background = _update_panel(settings.synthesis_ingredient_panel, synthesis_ingredient_panel_texts, synthesis_ingredient_panel_background, ingredient_lines, 'left')

@@ -143,36 +143,65 @@ local function fetch_and_display_synthesis_recipes(guild_id, rank)
     local chara_id = player.id
     param.set_chara_id(chara_id) -- chara_idをparamに保存
 
-    http_handler.fetch_synthesis_recipes(chara_id, guild_id, rank, function(success, data, error_message)
-        if success and data then
-            local recipe_items = {}
-            if #data > 0 then
-                for _, recipe in ipairs(data) do
-                    if recipe.result and recipe.result.name then
-                        table.insert(recipe_items, {id = 'RECIPE_ITEM_' .. tostring(recipe.id), label = recipe.result.name, data = recipe})
+    -- 1. レシピリストを取得
+    http_handler.fetch_synthesis_recipes(chara_id, guild_id, rank, function(recipe_success, recipe_data, recipe_error)
+        if recipe_success and recipe_data then
+            -- 2. 素材倉庫のインベントリを取得
+            http_handler.fetch_synergy_inventory(chara_id, function(inv_success, inv_data, inv_error)
+                if inv_success and inv_data then
+                    -- インベントリデータを使ってレシピデータの所持数を更新する
+                    local inventory_map = {}
+                    for _, item in ipairs(inv_data) do
+                        local key = tostring(item.id) .. "_" .. tostring(item.subId)
+                        inventory_map[key] = item.quantity
+                    end
+
+                    -- レシピデータの素材に所持数を付与する
+                    for _, recipe in ipairs(recipe_data) do
+                        if recipe.crystal then
+                            local key = tostring(recipe.crystal.itemId) .. "_" .. tostring(recipe.crystal.subId)
+                            recipe.crystal.possession = inventory_map[key] or 0
+                        end
+                        if recipe.ingredient then
+                            for _, ing in ipairs(recipe.ingredient) do
+                                local key = tostring(ing.itemId) .. "_" .. tostring(ing.subId)
+                                ing.possession = inventory_map[key] or 0
+                            end
+                        end
                     end
                 end
-            end
 
-            local recipe_list_menu_data = {
-                title = messages.synthesis_menu.guild_recipes.title .. ' - ' .. messages.synthesis_menu.rank_list.title, -- 仮のタイトル
-                items = recipe_items
-            }
+                -- レシピリストのメニューを作成・表示（インベントリ取得の成否に関わらず実行）
+                local recipe_items = {}
+                if #recipe_data > 0 then
+                    for _, recipe in ipairs(recipe_data) do
+                        if recipe.result and recipe.result.name then
+                            table.insert(recipe_items, {id = 'RECIPE_ITEM_' .. tostring(recipe.id), label = recipe.result.name, data = recipe})
+                        end
+                    end
+                end
 
-            if #recipe_items == 0 then
-                -- レシピが見つからなかった場合のメッセージ
-                recipe_list_menu_data.items = {{ id = 'empty_recipes', label = "レシピは見つかりませんでした。", description = ""}}
-            end
+                local recipe_list_menu_data = {
+                    title = messages.synthesis_menu.guild_recipes.title .. ' - ' .. messages.synthesis_menu.rank_list.title, -- 仮のタイトル
+                    items = recipe_items
+                }
 
-            param.set_current_menu(menu_manager.create_submenu(recipe_list_menu_data))
-            ui.show_menu_list(param.get_current_menu())
+                if #recipe_items == 0 then
+                    -- レシピが見つからなかった場合のメッセージ
+                    recipe_list_menu_data.items = {{ id = 'empty_recipes', label = "レシピは見つかりませんでした。", description = ""}}
+                end
 
-            -- 最初のアイテムの詳細をデフォルトで表示
-            if data and #data > 0 then
-                ui.show_synthesis_details(data[1])
-            end
+                param.set_current_menu(menu_manager.create_submenu(recipe_list_menu_data))
+                ui.hide_synthesis_details() -- 先に非表示にしておく
+                ui.show_menu_list(param.get_current_menu())
+
+                -- 最初のアイテムの詳細をデフォルトで表示
+                if recipe_data and #recipe_data > 0 then
+                    ui.show_synthesis_details(recipe_data[1]) -- 更新されたレシピデータを渡す
+                end
+            end)
         else
-            print('Failed to load synthesis recipes: ' .. (error_message or 'Unknown error'))
+            print('Failed to load synthesis recipes: ' .. (recipe_error or 'Unknown error'))
         end
     end)
 end

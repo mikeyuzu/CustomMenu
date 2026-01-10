@@ -75,6 +75,20 @@ function ui.cleanup()
     end
 end
 
+-- インジケーター表示
+function ui.show_indicator()
+    if indicator_text then
+        indicator_text:show()
+    end
+end
+
+-- インジケーター非表示
+function ui.hide_indicator()
+    if indicator_text then
+        indicator_text:hide()
+    end
+end
+
 -- 通知表示更新
 function ui.update_notification(has_notification)
     if indicator_text then

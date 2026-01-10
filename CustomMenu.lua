@@ -78,6 +78,7 @@ function Close_Menu()
     param.set_menu_open(false)
     param.set_current_menu(nil)
     ui.hide_menu_list()
+    ui.show_indicator() -- インジケーターを再表示
     if param.get_input_blocked() then
         input_handler.unblock_game_input()
         param.set_input_blocked(false)
@@ -337,6 +338,7 @@ windower.register_event('addon command', function(command, ...)
         param.set_menu_open(true)
         param.set_input_delay_frames(2)
         param.set_current_menu(menu_manager.get_main_menu())
+        ui.hide_indicator() -- インジケーターを非表示
         ui.show_menu_list(param.get_current_menu())
         input_handler.block_game_input()
         param.set_input_blocked(true)

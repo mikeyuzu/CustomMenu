@@ -28,6 +28,35 @@ local messages = {
             guild_list = {
                 label = 'ギルド別リスト',
                 description = 'ギルドを選んでレシピを検索します。',
+            },
+        },
+        guild_recipes = {
+            title = 'ギルド別リスト',
+            items = {
+                { id = 'woodworking', label = '木工レシピ' },
+                { id = 'smithing', label = '鍛冶レシピ' },
+                { id = 'goldsmithing', label = '彫金レシピ' },
+                { id = 'weaving', label = '織工レシピ' },
+                { id = 'leathercraft', label = '革工レシピ' },
+                { id = 'bonecraft', label = '骨工レシピ' },
+                { id = 'alchemy', label = '錬金術レシピ' },
+                { id = 'cooking', label = '調理レシピ' },
+            }
+        },
+        rank_list = {
+            title = 'ランク選択',
+            items = {
+                { id = 'neophyte', label = '素人' },
+                { id = 'apprentice', label = '見習' },
+                { id = 'journeyman', label = '徒弟' },
+                { id = 'craftsman', label = '下級職人' },
+                { id = 'artisan', label = '名取' },
+                { id = 'initiatiate', label = '目録' },
+                { id = 'disciple', label = '印可' },
+                { id = 'veteran', label = '高弟' },
+                { id = 'deku', label = '皆伝' },
+                { id = 'master', label = '師範' },
+                { id = 'grandmaster', label = '高級職人' },
             }
         },
         empty_storage_message = '合成倉庫にアイテムはありません',

@@ -357,6 +357,33 @@ function http_handler.remove_synergy_inventory_item(chara_id, item_id, sub_id, u
     end)()
 end
 
+-- 合成レシピ取得API呼び出し
+function http_handler.fetch_synthesis_recipes(chara_id, guild_id, rank, callback)
+    local params = {
+        charaId = chara_id,
+        guildId = guild_id,
+        rank = rank
+    }
+    local query_string = build_query_string(params)
+    local request_url = config.base_url .. '/GetSynthesisRecipes?' .. query_string
+
+    coroutine.wrap(function()
+        local success, data_string, status_code, error_message = http_handler.custom_request(request_url, 'GET')
+        local data = nil
+
+        if success then
+            local ok, decoded_data = pcall(json_decode_func, data_string)
+            if ok then
+                data = decoded_data
+            else
+                success = false
+                error_message = "JSON decode error for synthesis recipes: " .. tostring(decoded_data)
+            end
+        end
+        callback(success, data, error_message)
+    end)()
+end
+
 -- カスタムHTTPリクエスト実装例
 -- 実際に使用する場合はこちらを拡張
 function http_handler.custom_request(url_str, method, headers, body)

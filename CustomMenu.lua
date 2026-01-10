@@ -97,6 +97,80 @@ function Close_Dialog()
     ui.destroy_withdrawal_dialog() -- UI要素を破棄
 end
 
+-- 「ギルド別リスト」が選択された後の処理（ギルドリスト表示）
+local function handle_guild_list_selection()
+    local guild_menu_items = {}
+    local guild_definitions = messages.synthesis_menu.guild_recipes.items
+
+    for _, guild in ipairs(guild_definitions) do
+        table.insert(guild_menu_items, {id = 'GUILD_SELECTED_' .. guild.id, label = guild.label})
+    end
+
+    local guild_list_menu_data = {
+        title = messages.synthesis_menu.guild_recipes.title,
+        items = guild_menu_items
+    }
+    param.set_current_menu(menu_manager.create_submenu(guild_list_menu_data))
+    ui.show_menu_list(param.get_current_menu())
+end
+
+-- ギルドが選択された後の処理（ランクリスト表示）
+local function handle_rank_list_selection(selected_guild_id_str)
+    local rank_menu_items = {}
+    local rank_definitions = messages.synthesis_menu.rank_list.items
+
+    for _, rank in ipairs(rank_definitions) do
+        -- IDは 'RANK_SELECTED_GUILDID_RANKNAME' の形式にする
+        table.insert(rank_menu_items, {id = 'RANK_SELECTED_' .. selected_guild_id_str .. '_' .. rank.id, label = rank.label})
+    end
+
+    local rank_list_menu_data = {
+        title = messages.synthesis_menu.rank_list.title,
+        items = rank_menu_items
+    }
+    param.set_current_menu(menu_manager.create_submenu(rank_list_menu_data))
+    ui.show_menu_list(param.get_current_menu())
+end
+
+-- ランクが選択された後の処理（API呼び出しとレシピリスト表示）
+local function fetch_and_display_synthesis_recipes(guild_id, rank)
+    local player = windower.ffxi.get_player()
+    if not player or not player.id then
+        print('エラー: キャラクターIDが取得できません。')
+        return
+    end
+    local chara_id = player.id
+    param.set_chara_id(chara_id) -- chara_idをparamに保存
+
+    http_handler.fetch_synthesis_recipes(chara_id, guild_id, rank, function(success, data, error_message)
+        if success and data then
+            local recipe_items = {}
+            if #data > 0 then
+                for _, recipe in ipairs(data) do
+                    if recipe.result and recipe.result.name then
+                        table.insert(recipe_items, {id = 'RECIPE_ITEM_' .. tostring(recipe.id), label = recipe.result.name})
+                    end
+                end
+            end
+
+            local recipe_list_menu_data = {
+                title = messages.synthesis_menu.guild_recipes.title .. ' - ' .. messages.synthesis_menu.rank_list.title, -- 仮のタイトル
+                items = recipe_items
+            }
+
+            if #recipe_items == 0 then
+                -- レシピが見つからなかった場合のメッセージ
+                recipe_list_menu_data.items = {{ id = 'empty_recipes', label = "レシピは見つかりませんでした。", description = ""}}
+            end
+
+            param.set_current_menu(menu_manager.create_submenu(recipe_list_menu_data))
+            ui.show_menu_list(param.get_current_menu())
+        else
+            print('Failed to load synthesis recipes: ' .. (error_message or 'Unknown error'))
+        end
+    end)
+end
+
 -- 決定ボタン処理
 function Handle_Confirm()
     local selected = menu_manager.get_selected_item()
@@ -107,7 +181,30 @@ function Handle_Confirm()
         return type(id) == 'number'
     end
 
-    if selected.id == 'synthesis' then
+    -- 新しい合成メニュー処理の分岐
+    if selected.id == 'guild_list' then
+        handle_guild_list_selection()
+        return
+    elseif string.find(tostring(selected.id), 'GUILD_SELECTED_') then
+        local guild_id_str = string.match(tostring(selected.id), 'GUILD_SELECTED_(%w+)')
+        if guild_id_str then
+            handle_rank_list_selection(guild_id_str)
+        end
+        return
+    elseif string.find(tostring(selected.id), 'RANK_SELECTED_') then
+        local parts = selected.id:split('_')
+        local guild_id_str = parts[3] -- RANK_SELECTED_GUILDID_RANKNAME の形式を想定
+        local rank_name_str = parts[4]
+
+        if guild_id_str and rank_name_str then
+            local guild_id = param.guild_ids[string.upper(guild_id_str)]
+            local rank = param.rank_ids[string.upper(rank_name_str)]
+            if guild_id and rank ~= nil then
+                fetch_and_display_synthesis_recipes(guild_id, rank)
+            end
+        end
+        return
+    elseif selected.id == 'synthesis' then
         local synthesis_menu_data = menu_manager.get_synthesis_menu_data()
         param.set_current_menu(menu_manager.create_submenu(synthesis_menu_data))
         ui.show_menu_list(param.get_current_menu())
@@ -278,7 +375,7 @@ function Refresh_Menu_After_Inventory_Update(updated_cache)
 
             local menu_title = current_menu_data.title or "アイテムリスト"
             local item_list_menu_data = menu_manager.create_item_list_menu(filtered_items, menu_title)
-            
+
             -- 現在のメニューを直接更新 (スタック操作はしない)
             param.set_current_menu(menu_manager.create_current_menu_from_data(item_list_menu_data))
             ui.show_menu_list(param.get_current_menu())

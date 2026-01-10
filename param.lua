@@ -184,4 +184,29 @@ param.auction_house_ids = {
     INVALID = 255
 }
 
+param.guild_ids = {
+    WOODWORKING = 1,
+    SMITHING = 2,
+    GOLDSMITHING = 3,
+    WEAVING = 4,
+    LEATHERCRAFT = 5,
+    BONECRAFT = 6,
+    ALCHEMY = 7,
+    COOKING = 8,
+}
+
+param.rank_ids = {
+    NEOPHYTE = 0,
+    APPRENTICE = 1,
+    JOURNEYMAN = 2,
+    CRAFTSMAN = 3,
+    ARTISAN = 4,
+    INITIATE = 5,
+    DISCIPLE = 6,
+    VETERAN = 7,
+    DEKU = 8,
+    MASTER = 9,
+    GRANDMASTER = 10,
+}
+
 return param

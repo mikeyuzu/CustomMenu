@@ -144,7 +144,14 @@ function menu_manager.create_item_list_menu(items, title)
     local menu_items = {}
     local menu_title = title or "アイテムリスト"
     
-    local parent_id_for_item_list = current_menu and current_menu.id or nil -- アイテムリストの親は現在のメニュー
+    local parent_id_for_item_list
+    if current_menu and current_menu.id == "ITEM_LIST_MENU" then
+        -- 現在のメニューが既にアイテムリストの場合（＝更新時）、その親IDを引き継ぐ
+        parent_id_for_item_list = current_menu.parent_id
+    else
+        -- そうでない場合（＝新規作成時）、現在のメニューIDを親とする
+        parent_id_for_item_list = current_menu and current_menu.id or nil
+    end
 
     if items then
         for _, item in ipairs(items) do

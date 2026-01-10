@@ -135,7 +135,7 @@ function synergy_category_generator.generate_menu_data(synergy_inventory_items, 
             return nil, nil
         end
         local found_menu, found_label = find_menu_node(category_definitions.main, current_menu_id)
-        if found_menu then
+        if found_menu and found_label then
             menu_to_generate = found_menu
             title = found_label
         else

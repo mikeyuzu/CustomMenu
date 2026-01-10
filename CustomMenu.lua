@@ -183,7 +183,7 @@ function Handle_Confirm()
             local original_item_id_str = string.match(tostring(selected.id), 'ITEM_SELECTED_(%d+)')
             local original_item_id = tonumber(original_item_id_str)
             local selected_item_data = nil
-            
+
             -- キャッシュから完全なアイテムデータを見つける
             for _, item_data in ipairs(inventory_cache) do
                 if item_data.id == original_item_id and item_data.subId == selected.subId then
@@ -253,8 +253,16 @@ function Refresh_Menu_After_Inventory_Update(updated_cache)
         return
     end
 
-    -- 現在のメニューがアイテムリストの場合
+    -- アイテムリストかどうかの判定を強化
+    local is_item_list = false
     if current_menu_data.id == "ITEM_LIST_MENU" then
+        is_item_list = true
+    elseif current_menu_data.items and #current_menu_data.items > 0 and current_menu_data.items[1].id and string.find(current_menu_data.items[1].id, 'ITEM_SELECTED_') then
+        -- メニュー項目の中身を見て、アイテムリストであるかを判断する
+        is_item_list = true
+    end
+
+    if is_item_list then
         -- アイテムリストの親ID（カテゴリID）を使って、そのカテゴリのアイテムを再生成
         local category_id = current_menu_data.parent_id
         if category_id then
@@ -310,7 +318,6 @@ function Handle_Withdraw()
         Close_Dialog() -- まず引き出しダイアログを閉じる
 
         if success then
-            print('SUCCESS: アイテム ' .. item.name .. ' を ' .. usenum .. ' 個引き出しました。')
             -- 完了ダイアログを表示
             local success_message = string.format(messages.retrieval_success, item.name)
             ui.create_success_dialog(success_message)

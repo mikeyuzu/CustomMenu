@@ -176,7 +176,7 @@ local function fetch_and_display_synthesis_recipes(guild_id, rank)
                 if #recipe_data > 0 then
                     for _, recipe in ipairs(recipe_data) do
                         if recipe.result and recipe.result.name then
-                            table.insert(recipe_items, {id = 'RECIPE_ITEM_' .. tostring(recipe.id), label = recipe.result.name, data = recipe})
+                            table.insert(recipe_items, {id = 'RECIPE_ITEM_' .. tostring(recipe.id), label = recipe.result.name, data = recipe, isOpen = recipe.isOpen})
                         end
                     end
                 end

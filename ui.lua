@@ -187,7 +187,7 @@ function ui.update_menu_display(menu_data)
     for i = start_idx, end_idx do
         local item = menu_data.items[i]
         local prefix = (i == menu_data.cursor) and '> ' or '  '
-        local label_text = prefix .. item.label
+        local label_text = prefix .. (item.isOpen == 0 and '？？？' or item.label)
         local quantity_text = tostring(item.quantity or '')
 
         if string.len(label_text) > max_label_len then
@@ -450,24 +450,45 @@ function ui.show_synthesis_details(recipe)
     else
         table.insert(result_lines, "スキル不明")
     end
-    table.insert(result_lines, "エンターで合成する")
-    table.insert(result_lines, "【完成品】")
+    if recipe.isOpen == 0 then
+        local all_materials_possessed = true
+        if recipe.crystal and (recipe.crystal.possession or 0) < (recipe.crystal.quantity or 1) then
+            all_materials_possessed = false
+        end
+        if all_materials_possessed and recipe.ingredient then
+            for _, ing in ipairs(recipe.ingredient) do
+                if (ing.possession or 0) < (ing.quantity or 1) then
+                    all_materials_possessed = false
+                    break
+                end
+            end
+        end
 
-    if recipe.result then
-        table.insert(result_lines, string.format("NQ %s(%d)", recipe.result.name, recipe.result.quantity or 1))
-        add_description_lines(result_lines, recipe.result.description)
-    end
-    if recipe.resultHQ1 then
-        table.insert(result_lines, string.format("HQ1 %s(%d)", recipe.resultHQ1.name, recipe.resultHQ1.quantity or 1))
-        add_description_lines(result_lines, recipe.resultHQ1.description)
-    end
-    if recipe.resultHQ2 then
-        table.insert(result_lines, string.format("HQ2 %s(%d)", recipe.resultHQ2.name, recipe.resultHQ2.quantity or 1))
-        add_description_lines(result_lines, recipe.resultHQ2.description)
-    end
-    if recipe.resultHQ3 then
-        table.insert(result_lines, string.format("HQ3 %s(%d)", recipe.resultHQ3.name, recipe.resultHQ3.quantity or 1))
-        add_description_lines(result_lines, recipe.resultHQ3.description)
+        if all_materials_possessed then
+            table.insert(result_lines, "エンターで解放する")
+        else
+            table.insert(result_lines, "素材を揃えて解放しよう")
+        end
+    else
+        table.insert(result_lines, "エンターで合成する")
+        table.insert(result_lines, "【完成品】")
+
+        if recipe.result then
+            table.insert(result_lines, string.format("NQ %s(%d)", recipe.result.name, recipe.result.quantity or 1))
+            add_description_lines(result_lines, recipe.result.description)
+        end
+        if recipe.resultHQ1 then
+            table.insert(result_lines, string.format("HQ1 %s(%d)", recipe.resultHQ1.name, recipe.resultHQ1.quantity or 1))
+            add_description_lines(result_lines, recipe.resultHQ1.description)
+        end
+        if recipe.resultHQ2 then
+            table.insert(result_lines, string.format("HQ2 %s(%d)", recipe.resultHQ2.name, recipe.resultHQ2.quantity or 1))
+            add_description_lines(result_lines, recipe.resultHQ2.description)
+        end
+        if recipe.resultHQ3 then
+            table.insert(result_lines, string.format("HQ3 %s(%d)", recipe.resultHQ3.name, recipe.resultHQ3.quantity or 1))
+            add_description_lines(result_lines, recipe.resultHQ3.description)
+        end
     end
     synthesis_result_panel_background = _update_panel(settings.synthesis_result_panel, synthesis_result_panel_texts, synthesis_result_panel_background, result_lines, 'left')
 

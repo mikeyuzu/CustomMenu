@@ -691,6 +691,10 @@ local success_dialog_background = nil
 local success_dialog_button_bg = nil
 local success_dialog_button_text = nil
 
+-- レシピ解放ダイアログのUI要素
+local open_recipe_dialog_texts = {}
+local open_recipe_dialog_background = nil
+
 -- 完了ダイアログを破棄
 function ui.destroy_success_dialog()
     for _, text_obj in ipairs(success_dialog_texts) do
@@ -758,6 +762,46 @@ function ui.create_success_dialog(message_text)
         bg = { alpha = 0 }
     })
     success_dialog_button_text:show()
+end
+
+-- レシピ解放ダイアログを破棄
+function ui.destroy_open_recipe_dialog()
+    for _, text_obj in ipairs(open_recipe_dialog_texts) do
+        text_obj:destroy()
+    end
+    open_recipe_dialog_texts = {}
+    if open_recipe_dialog_background then
+        open_recipe_dialog_background:destroy()
+        open_recipe_dialog_background = nil
+    end
+end
+
+-- レシピ解放ダイアログを作成
+function ui.create_open_recipe_dialog(recipe_name)
+    ui.destroy_open_recipe_dialog() -- 既存のダイアログをクリア
+
+    local dialog_x = (windower.get_windower_settings().ui_x_res / 2) - (dialog_width / 2)
+    local dialog_y = (windower.get_windower_settings().ui_y_res / 2) - (dialog_height / 2)
+
+    -- 背景
+    local bg_options = {
+        pos = { x = dialog_x, y = dialog_y },
+        bg = { alpha = 230, red = 0, green = 0, blue = 0 },
+        text = { size = 12, font = 'MS Gothic' },
+        flags = { bold = true, draggable = false }
+    }
+    open_recipe_dialog_background = texts.new(string.rep(string.rep(' ', 40) .. '\n', 7), bg_options)
+    open_recipe_dialog_background:show()
+
+    -- メッセージテキスト
+    local message_text = string.format("「%s」のレシピを解放しました", recipe_name)
+    local message_obj = texts.new(message_text, {
+        pos = { x = dialog_x + 15, y = dialog_y + 20 },
+        text = { size = 12, font = 'MS Gothic', color = {255,255,255,255} },
+        bg = { alpha = 0 }
+    })
+    table.insert(open_recipe_dialog_texts, message_obj)
+    message_obj:show()
 end
 
 

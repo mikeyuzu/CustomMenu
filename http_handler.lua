@@ -384,6 +384,27 @@ function http_handler.fetch_synthesis_recipes(chara_id, guild_id, rank, callback
     end)()
 end
 
+-- レシピ解放API呼び出し
+function http_handler.open_recipe(chara_id, recipe_id, callback)
+    local params = {
+        charaId = chara_id,
+        id = recipe_id
+    }
+    local query_string = build_query_string(params)
+    local request_url = config.base_url .. '/OpenRecipes?' .. query_string
+
+    coroutine.wrap(function()
+        local success, data_string, status_code, error_message = http_handler.custom_request(request_url, 'GET')
+        local message = nil
+        if success then
+            message = "レシピを解放しました。" -- 成功時のメッセージ
+        else
+            message = "レシピの解放に失敗しました: " .. (error_message or "不明なエラー") -- 失敗時のメッセージ
+        end
+        callback(success, message)
+    end)()
+end
+
 -- カスタムHTTPリクエスト実装例
 -- 実際に使用する場合はこちらを拡張
 function http_handler.custom_request(url_str, method, headers, body)

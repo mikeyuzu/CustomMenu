@@ -13,7 +13,9 @@ local state = {
     dialog_withdraw_quantity = 0, -- ダイアログで選択されている引き出し数
     dialog_selected_button = 'cancel', -- ダイアログで選択されているボタン ('cancel' or 'withdraw')
     dialog_needs_redraw = false, -- ダイアログの再描画が必要か
-    success_dialog_open = false -- 完了ダイアログが開いているか
+    success_dialog_open = false, -- 完了ダイアログが開いているか
+    open_recipe_dialog_open = false, -- レシピ解放ダイアログが開いているか
+    opened_recipe_name = nil -- 解放されたレシピ名
 }
 
 function param.get_has_notification()
@@ -25,6 +27,23 @@ end
 
 function param.set_success_dialog_open(open)
     state.success_dialog_open = open
+end
+
+-- 新しいgetter/setter (レシピ解放ダイアログ用)
+function param.get_open_recipe_dialog_open()
+    return state.open_recipe_dialog_open
+end
+
+function param.set_open_recipe_dialog_open(open)
+    state.open_recipe_dialog_open = open
+end
+
+function param.get_opened_recipe_name()
+    return state.opened_recipe_name
+end
+
+function param.set_opened_recipe_name(name)
+    state.opened_recipe_name = name
 end
 
 function param.set_has_notification(has_notification)

@@ -254,8 +254,13 @@ function Handle_Confirm()
         end
         return
     elseif string.find(tostring(selected.id), 'RECIPE_ITEM_') then
-        -- レシピアイテムが選択されたら合成を実行する（将来のタスク）
-        -- 今回はエンターキーで何もしない
+        -- レシピアイテムが選択された場合
+        if selected.isOpen == 0 and selected.allMaterialsPossessed then
+            Handle_Open_Recipe(selected)
+        else
+            -- 今回はエンターキーで何もしない（将来のタスクで合成処理をここに実装する可能性あり）
+            return
+        end
         return
     elseif selected.id == 'synthesis' then
         local synthesis_menu_data = menu_manager.get_synthesis_menu_data()
@@ -438,9 +443,11 @@ function Refresh_Menu_After_Inventory_Update(updated_cache)
             -- ただし、ITEM_LIST_MENUは必ず親カテゴリを持つはずなので、このパスは基本的には通らない想定
             if menu_manager.can_go_back() then
                 local prev_menu = menu_manager.go_back()
-                local regenerated_menu = synergy_category_generator.generate_menu_data(updated_cache, prev_menu.id)
-                param.set_current_menu(menu_manager.create_submenu(regenerated_menu))
-                ui.show_menu_list(param.get_current_menu())
+                if prev_menu ~= nil then
+                    local regenerated_menu = synergy_category_generator.generate_menu_data(updated_cache, prev_menu.id)
+                    param.set_current_menu(menu_manager.create_submenu(regenerated_menu))
+                    ui.show_menu_list(param.get_current_menu())
+                end
             else
                 Close_Menu()
             end
@@ -477,6 +484,49 @@ function Handle_Withdraw()
         else
             print('ERROR: アイテム ' .. item.name .. ' の引き出しに失敗しました: ' .. (message or '不明なエラー'))
             -- 必要ならここでエラーダイアログを表示
+        end
+    end)
+end
+
+-- レシピ解放処理
+function Handle_Open_Recipe(selected_recipe_item)
+    local chara_id = param.get_chara_id()
+    if not chara_id then
+        print('エラー: キャラクターIDが取得できません。レシピを解放できません。')
+        return
+    end
+
+    local recipe_id = string.match(tostring(selected_recipe_item.id), 'RECIPE_ITEM_(%d+)')
+    if not recipe_id then
+        print('エラー: レシピIDが取得できません。')
+        return
+    end
+    recipe_id = tonumber(recipe_id)
+
+    http_handler.open_recipe(chara_id, recipe_id, function(success, message)
+        if success then
+            -- 解放成功ダイアログを表示
+            param.set_opened_recipe_name(selected_recipe_item.label) -- 解放されたレシピ名をparamに保存
+            ui.create_open_recipe_dialog(selected_recipe_item.label)
+            param.set_open_recipe_dialog_open(true) -- ダイアログが開いている状態に設定
+
+            -- 解放されたレシピのisOpenフラグを更新する必要があるが、
+            -- これはUIを再描画する際に反映されるようにする。
+            -- current_menuから該当アイテムを見つけてisOpenを更新する。
+            local current_menu = param.get_current_menu()
+            if current_menu and current_menu.items then
+                for i, item in ipairs(current_menu.items) do
+                    if item.id == selected_recipe_item.id then
+                        item.isOpen = 1 -- APIが成功したのでisOpenをtrue(1)に設定
+                        if item.data then
+                            item.data.isOpen = 1 -- dataオブジェクトも更新
+                        end
+                        break
+                    end
+                end
+            end
+        else
+            print('レシピ解放エラー: ' .. message)
         end
     end)
 end
@@ -550,8 +600,8 @@ windower.register_event('keyboard', function(dik, down, flags, blocked)
     if param.get_dialog_open() then
         local item = param.get_dialog_item()
         local current_quantity = param.get_dialog_withdraw_quantity()
-        local max_quantity = item.quantity
-        local stack_size = item.stackSize
+        local max_quantity = item and item.quantity or 0
+        local stack_size = item and item.stackSize or 0
         local withdraw_limit = math.min(max_quantity, stack_size)
 
         if action == 'up' then
@@ -586,6 +636,30 @@ windower.register_event('keyboard', function(dik, down, flags, blocked)
             Close_Dialog()
         end
         return true -- ダイアログがアクティブな場合は他の入力処理をブロック
+    end
+
+    -- レシピ解放ダイアログが開いている場合の処理 (追加)
+    if param.get_open_recipe_dialog_open() then
+        if action == 'confirm' or action == 'cancel' then
+            -- 解放ダイアログを閉じる
+            ui.destroy_open_recipe_dialog()
+            param.set_open_recipe_dialog_open(false)
+            param.set_opened_recipe_name(nil)
+
+            -- 現在のメニューを再描画して、レシピのisOpen状態の変更を反映
+            ui.hide_synthesis_details() -- サブウィンドウを非表示にする
+            ui.update_menu_display(param.get_current_menu())
+
+            -- 現在選択中のレシピの詳細を再表示（isOpen状態が更新されたもの）
+            local current_menu = param.get_current_menu()
+            if current_menu and current_menu.items and #current_menu.items > 0 and current_menu.items[1].id and string.find(current_menu.items[1].id, 'RECIPE_ITEM_') then
+                local selected = menu_manager.get_selected_item()
+                if selected and selected.data then
+                    ui.show_synthesis_details(selected.data)
+                end
+            end
+        end
+        return true -- 他の入力をブロック
     end
 
     -- メニューが開いていない、または入力がブロックされていない場合は、以降の処理を行わない

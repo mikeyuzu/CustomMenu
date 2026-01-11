@@ -321,11 +321,12 @@ local function _update_panel(panel_settings, panel_texts_table, panel_background
 
     -- 背景の描画
     local max_content_width = 0
-    for _, line in ipairs(content_lines) do
+    for _, line_data in ipairs(content_lines) do
+        local line_text = (type(line_data) == 'table') and line_data.text or line_data
         -- Luaはマルチバイト文字を1として数えるため、半角換算する
         local len = 0
-        for i = 1, #line do
-            local byte = string.byte(line, i)
+        for i = 1, #line_text do
+            local byte = string.byte(line_text, i)
             if byte > 127 then
                 len = len + 2 -- 全角は2文字分としてカウント
             else
@@ -363,7 +364,13 @@ local function _update_panel(panel_settings, panel_texts_table, panel_background
 
     -- テキストの描画
     local current_y = panel_settings.pos.y + 5 -- 上パディング
-    for _, line in ipairs(content_lines) do
+    for _, line_data in ipairs(content_lines) do
+        local line_text
+        if type(line_data) == 'table' then
+            line_text = line_data.text
+        else
+            line_text = line_data
+        end
         -- settings.textをディープコピーする
         local text_setting = {
             size = panel_settings.text.size,
@@ -393,7 +400,7 @@ local function _update_panel(panel_settings, panel_texts_table, panel_background
             end
         end
 
-        local text_obj = texts.new(line, text_options)
+        local text_obj = texts.new(line_text, text_options)
         table.insert(panel_texts_table, text_obj)
         text_obj:show()
 
@@ -405,6 +412,11 @@ end
 
 -- 合成レシピ詳細表示
 function ui.show_synthesis_details(recipe)
+    if not recipe then
+        ui.hide_synthesis_details()
+        return
+    end
+
     -- 説明文をフォーマットして追加するヘルパー関数
     local function add_description_lines(lines_table, description)
         description = description or "説明なし"
@@ -461,13 +473,21 @@ function ui.show_synthesis_details(recipe)
 
     -- 素材パネルの表示
     local ingredient_lines = {}
-    table.insert(ingredient_lines, "【素材】")
+    table.insert(ingredient_lines, {text = "【素材】"})
     if recipe.crystal then
-        table.insert(ingredient_lines, string.format("%s(%d/%d)", recipe.crystal.name, recipe.crystal.possession or 0, recipe.crystal.quantity or 1))
+        local line_text = string.format("%s(%d/%d)", recipe.crystal.name or "(Unknown)", recipe.crystal.possession or 0, recipe.crystal.quantity or 1)
+        if (recipe.crystal.possession or 0) < (recipe.crystal.quantity or 1) then
+            line_text = string.format("\\cs(255,100,100)%s\\cr", line_text) -- 色コード埋め込み
+        end
+        table.insert(ingredient_lines, {text = line_text})
     end
     if recipe.ingredient then
         for _, ing in ipairs(recipe.ingredient) do
-            table.insert(ingredient_lines, string.format("%s(%d/%d)", ing.name, ing.possession or 0, ing.quantity or 1))
+            local line_text = string.format("%s(%d/%d)", ing.name or "(Unknown)", ing.possession or 0, ing.quantity or 1)
+            if (ing.possession or 0) < (ing.quantity or 1) then
+                line_text = string.format("\\cs(255,100,100)%s\\cr", line_text) -- 色コード埋め込み
+            end
+            table.insert(ingredient_lines, {text = line_text})
         end
     end
     synthesis_ingredient_panel_background = _update_panel(settings.synthesis_ingredient_panel, synthesis_ingredient_panel_texts, synthesis_ingredient_panel_background, ingredient_lines, 'left')

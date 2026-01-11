@@ -186,10 +186,19 @@ function ui.update_menu_display(menu_data)
 
     for i = start_idx, end_idx do
         local item = menu_data.items[i]
-        local prefix = (i == menu_data.cursor) and '> ' or '  '
-        local label_text = prefix .. (item.isOpen == 0 and '？？？' or item.label)
-        local quantity_text = tostring(item.quantity or '')
-
+            local prefix = (i == menu_data.cursor) and '> ' or '  '
+            local recipe_name
+            if item.isOpen == 0 then
+                if item.allMaterialsPossessed then
+                    recipe_name = '\\cs(255,255,0)？？？\\cr' -- 黄色
+                else
+                    recipe_name = '？？？'
+                end
+            else
+                recipe_name = item.label
+            end
+            local label_text = prefix .. recipe_name
+            local quantity_text = tostring(item.quantity or '')
         if string.len(label_text) > max_label_len then
             max_label_len = string.len(label_text)
         end

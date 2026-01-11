@@ -176,7 +176,21 @@ local function fetch_and_display_synthesis_recipes(guild_id, rank)
                 if #recipe_data > 0 then
                     for _, recipe in ipairs(recipe_data) do
                         if recipe.result and recipe.result.name then
-                            table.insert(recipe_items, {id = 'RECIPE_ITEM_' .. tostring(recipe.id), label = recipe.result.name, data = recipe, isOpen = recipe.isOpen})
+                            -- 素材が全て揃っているか判定
+                            local all_materials_possessed = true
+                            if recipe.crystal and (recipe.crystal.possession or 0) < (recipe.crystal.quantity or 1) then
+                                all_materials_possessed = false
+                            end
+                            if all_materials_possessed and recipe.ingredient then
+                                for _, ing in ipairs(recipe.ingredient) do
+                                    if (ing.possession or 0) < (ing.quantity or 1) then
+                                        all_materials_possessed = false
+                                        break
+                                    end
+                                end
+                            end
+
+                            table.insert(recipe_items, {id = 'RECIPE_ITEM_' .. tostring(recipe.id), label = recipe.result.name, data = recipe, isOpen = recipe.isOpen, allMaterialsPossessed = all_materials_possessed})
                         end
                     end
                 end

@@ -61,6 +61,18 @@ local messages = {
         },
         empty_storage_message = '合成倉庫にアイテムはありません',
         category_description = '%sカテゴリの合成素材を表示します。',
+        recipe_open = 'エンターで解放する',
+        recipe_opened = '「%s」のレシピを解放しました',
+        recipe_not_open = '素材を揃えて解放しよう',
+        run_synthesis = 'エンターで合成する',
+        not_infomation = '説明無し',
+        other_skill = 'スキル不明',
+        synthesis_item = '【完成品】',
+        elemental_item = '【素材】',
+        confirm_removal = '%sを取り出しますか？',
+        quantity_change = '個数 %d/%d (上下で変更)',
+        dialog_get_item = '取り出す',
+        dialog_cancel = 'キャンセル',
     },
 
     synergy_skill = {
@@ -75,7 +87,6 @@ local messages = {
             { id = 'cooking', label = '調理' },
         }
     },
-
 
     command_help = {
         header = 'CustomMenu Commands:',

@@ -434,7 +434,7 @@ function ui.show_synthesis_details(recipe)
 
     -- 説明文をフォーマットして追加するヘルパー関数
     local function add_description_lines(lines_table, description, current_y_ref, line_height)
-        description = description or "説明なし"
+        description = description or messages.synthesis_menu.not_infomation
         local lines = description:split('\n')
 
         if #lines == 0 then
@@ -466,9 +466,9 @@ function ui.show_synthesis_details(recipe)
                 rank_message = rank_message .. string.format("%s%d ", skill.label, recipe.craftRank[id])
             end
         end
-        skill_line = rank_message ~= "" and rank_message or "スキル不明"
+        skill_line = rank_message ~= "" and rank_message or messages.synthesis_menu.other_skill
     else
-        skill_line = "スキル不明"
+        skill_line = messages.synthesis_menu.other_skill
     end
     table.insert(result_lines, {text = skill_line, y = current_y_nq_hq.y})
     current_y_nq_hq.y = current_y_nq_hq.y + panel_line_height
@@ -483,13 +483,13 @@ function ui.show_synthesis_details(recipe)
                 if (ing.possession or 0) < (ing.quantity or 1) then all_materials_possessed = false; break end
             end
         end
-        status_message = all_materials_possessed and "エンターで解放する" or "素材を揃えて解放しよう"
+        status_message = all_materials_possessed and messages.synthesis_menu.recipe_open or messages.synthesis_menu.recipe_not_open
     else
-        status_message = "エンターで合成する"
+        status_message = messages.synthesis_menu.run_synthesis
     end
     table.insert(result_lines, {text = status_message, y = current_y_nq_hq.y})
     current_y_nq_hq.y = current_y_nq_hq.y + panel_line_height
-    table.insert(result_lines, {text = "【完成品】", y = current_y_nq_hq.y})
+    table.insert(result_lines, {text = messages.synthesis_menu.synthesis_item, y = current_y_nq_hq.y})
     current_y_nq_hq.y = current_y_nq_hq.y + panel_line_height
 
     local function add_nq_hq_item(item_data, prefix)
@@ -525,7 +525,7 @@ function ui.show_synthesis_details(recipe)
     local materials_layout = {} -- 選択可能な素材アイテムのレイアウト情報を保持
     local current_y_materials = {y = settings.synthesis_ingredient_panel.pos.y + 5} -- Y座標参照
 
-    table.insert(ingredient_lines, {text = "【素材】", y = current_y_materials.y})
+    table.insert(ingredient_lines, {text = messages.synthesis_menu.elemental_item, y = current_y_materials.y})
     current_y_materials.y = current_y_materials.y + panel_line_height
 
     local function add_material_item(item_data, is_crystal)
@@ -687,9 +687,9 @@ local function update_dialog_buttons()
     end
     create_button_bg(cancel_x, button_y, selected_button == 'cancel')
     create_button_bg(withdraw_x, button_y, selected_button == 'withdraw')
-    
+
     -- 2. テキストを描画
-    local cancel_text = texts.new('キャンセル', {
+    local cancel_text = texts.new(messages.synthesis_menu.dialog_cancel, {
         pos = { x = cancel_x + (button_width / 2) - 24, y = button_y + 2 + 6 },
         text = { size = 12, font = 'MS Gothic', color = {255,255,255,255}, align = 'center' },
         bg = { alpha = 0 }
@@ -697,7 +697,7 @@ local function update_dialog_buttons()
     table.insert(dialog_button_texts, cancel_text)
     cancel_text:show()
 
-    local withdraw_text = texts.new('取り出す', {
+    local withdraw_text = texts.new(messages.synthesis_menu.dialog_get_item, {
         pos = { x = withdraw_x + (button_width / 2) - 16, y = button_y + 2 + 6 },
         text = { size = 12, font = 'MS Gothic', color = {255,255,255,255}, align = 'center' },
         bg = { alpha = 0 }
@@ -734,7 +734,7 @@ function ui.create_withdrawal_dialog()
     local line_y = dialog_y + 10
     local text_x_offset = 15
 
-    local item_name_text = texts.new(string.format('%sを取り出しますか？', item.name), {
+    local item_name_text = texts.new(string.format(messages.synthesis_menu.confirm_removal, item.name), {
         pos = { x = dialog_x + text_x_offset, y = line_y },
         text = { size = 12, font = 'MS Gothic', color = {255,255,255,255} },
         bg = { alpha = 0 }
@@ -743,21 +743,21 @@ function ui.create_withdrawal_dialog()
     item_name_text:show()
     line_y = line_y + 20
 
-    quantity_text_obj = texts.new(string.format('個数 %d/%d (上下で変更)', withdraw_quantity, max_quantity), {
+    quantity_text_obj = texts.new(string.format(messages.synthesis_menu.quantity_change, withdraw_quantity, max_quantity), {
         pos = { x = dialog_x + text_x_offset, y = line_y },
         text = { size = 12, font = 'MS Gothic', color = {255,255,255,255} },
         bg = { alpha = 0 }
     })
     table.insert(dialog_texts, quantity_text_obj)
     quantity_text_obj:show()
-    
+
     update_dialog_buttons() -- 初回のボタンを描画
 end
 
 -- ダイアログの表示内容を部分的に更新
 function ui.update_withdrawal_dialog(update_type)
     if not param.get_dialog_open() then return end
-    
+
     if update_type == 'quantity' then
         local item = param.get_dialog_item()
         if not item or not quantity_text_obj then return end
@@ -881,7 +881,7 @@ function ui.create_open_recipe_dialog(recipe_name)
     open_recipe_dialog_background:show()
 
     -- メッセージテキスト
-    local message_text = string.format("「%s」のレシピを解放しました", recipe_name)
+    local message_text = string.format(messages.synthesis_menu.recipe_opened, recipe_name)
     local message_obj = texts.new(message_text, {
         pos = { x = dialog_x + 15, y = dialog_y + 20 },
         text = { size = 12, font = 'MS Gothic', color = {255,255,255,255} },

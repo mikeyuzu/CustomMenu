@@ -479,7 +479,7 @@ function Handle_Withdraw()
         return
     end
 
-    http_handler.remove_synergy_inventory_item(chara_id, item.id, item.subId, usenum, item.quantity, function(success, message)
+    http_handler.remove_synergy_inventory_item(chara_id, item.id, item.subId, usenum, function(success, message)
         Close_Dialog() -- まず引き出しダイアログを閉じる
 
         if success then

@@ -454,8 +454,21 @@ function ui.show_synthesis_details(recipe)
 
     -- 完成品パネルの表示
     local result_lines = {}
-    if recipe.craftRank and recipe.craftRank[1] then
-        table.insert(result_lines, string.format("木工%d", recipe.craftRank[1]))
+    if recipe.craftRank then
+        local rank_message = ""
+        local synergy_skills = messages.synergy_skill.items
+
+        for id, skill in ipairs(synergy_skills) do
+            if recipe.craftRank[id] and recipe.craftRank[id] > 0 then
+                rank_message = rank_message .. string.format("%s%d ", skill.label, recipe.craftRank[id])
+            end
+        end
+
+        if rank_message ~= "" then
+            table.insert(result_lines, rank_message)
+        else
+            table.insert(result_lines, "スキル不明")
+        end
     else
         table.insert(result_lines, "スキル不明")
     end

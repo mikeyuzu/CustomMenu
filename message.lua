@@ -63,6 +63,20 @@ local messages = {
         category_description = '%sカテゴリの合成素材を表示します。',
     },
 
+    synergy_skill = {
+        items = {
+            { id = 'woodworking', label = '木工' },
+            { id = 'smithing', label = '鍛冶' },
+            { id = 'goldsmithing', label = '彫金' },
+            { id = 'clothcraft', label = '裁縫' },
+            { id = 'leathercraft', label = '革細工' },
+            { id = 'bonecraft', label = '骨細工' },
+            { id = 'alchemy', label = '錬金術' },
+            { id = 'cooking', label = '調理' },
+        }
+    },
+
+
     command_help = {
         header = 'CustomMenu Commands:',
         open = '  //cmenu open  - メニューを開く',

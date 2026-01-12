@@ -62,6 +62,8 @@ local synthesis_result_panel_background = nil
 local synthesis_ingredient_panel_texts = {}
 local synthesis_ingredient_panel_background = nil
 
+local cursor_highlight_background_sub = nil -- サブウィンドウのカーソルハイライト用
+
 -- 初期化
 function ui.initialize()
     -- インジケーター(カスタムメニュー)の作成
@@ -93,6 +95,10 @@ function ui.cleanup()
     if description_text then
         description_text:destroy()
         description_text = nil
+    end
+    if cursor_highlight_background_sub then
+        cursor_highlight_background_sub:destroy()
+        cursor_highlight_background_sub = nil
     end
     ui.hide_synthesis_details() -- サブウィンドウもクリーンアップ時に非表示にする
 end
@@ -427,119 +433,187 @@ function ui.show_synthesis_details(recipe)
     end
 
     -- 説明文をフォーマットして追加するヘルパー関数
-    local function add_description_lines(lines_table, description)
+    local function add_description_lines(lines_table, description, current_y_ref, line_height)
         description = description or "説明なし"
         local lines = description:split('\n')
 
         if #lines == 0 then
-            table.insert(lines_table, "　")
+            table.insert(lines_table, {text = "　", y = current_y_ref.y})
+            current_y_ref.y = current_y_ref.y + line_height
             return
         end
 
-        -- 1行目をテーブルに追加
-        table.insert(lines_table, "　" .. lines[1])
-
-        -- 2行目以降を処理してテーブルに追加
-        for i = 2, #lines do
-            local line = lines[i]
-            if line ~= "" then
-                -- 抽出したインデントを2行目以降に追加
-                table.insert(lines_table, "　" .. line)
-            end
+        for i, line in ipairs(lines) do
+            local line_to_add = "　" .. line
+            table.insert(lines_table, {text = line_to_add, y = current_y_ref.y})
+            current_y_ref.y = current_y_ref.y + line_height
         end
-
-        -- 最後に改行を入れる
-        table.insert(lines_table, "")
     end
 
     -- 完成品パネルの表示
     local result_lines = {}
+    local nq_hq_items_layout = {} -- 選択可能なNQ/HQアイテムのレイアウト情報を保持
+    local current_y_nq_hq = {y = settings.synthesis_result_panel.pos.y + 5} -- Y座標参照
+    local panel_line_height = settings.synthesis_result_panel.text.size + 4
+
+    -- スキル情報の追加
+    local skill_line = ""
     if recipe.craftRank then
         local rank_message = ""
         local synergy_skills = messages.synergy_skill.items
-
         for id, skill in ipairs(synergy_skills) do
             if recipe.craftRank[id] and recipe.craftRank[id] > 0 then
                 rank_message = rank_message .. string.format("%s%d ", skill.label, recipe.craftRank[id])
             end
         end
-
-        if rank_message ~= "" then
-            table.insert(result_lines, rank_message)
-        else
-            table.insert(result_lines, "スキル不明")
-        end
+        skill_line = rank_message ~= "" and rank_message or "スキル不明"
     else
-        table.insert(result_lines, "スキル不明")
+        skill_line = "スキル不明"
     end
+    table.insert(result_lines, {text = skill_line, y = current_y_nq_hq.y})
+    current_y_nq_hq.y = current_y_nq_hq.y + panel_line_height
+
+    -- 開放済み/未開放メッセージ
+    local status_message = ""
     if recipe.isOpen == 0 then
         local all_materials_possessed = true
-        if recipe.crystal and (recipe.crystal.possession or 0) < (recipe.crystal.quantity or 1) then
-            all_materials_possessed = false
-        end
+        if recipe.crystal and (recipe.crystal.possession or 0) < (recipe.crystal.quantity or 1) then all_materials_possessed = false end
         if all_materials_possessed and recipe.ingredient then
             for _, ing in ipairs(recipe.ingredient) do
-                if (ing.possession or 0) < (ing.quantity or 1) then
-                    all_materials_possessed = false
-                    break
-                end
+                if (ing.possession or 0) < (ing.quantity or 1) then all_materials_possessed = false; break end
             end
         end
-
-        if all_materials_possessed then
-            table.insert(result_lines, "エンターで解放する")
-        else
-            table.insert(result_lines, "素材を揃えて解放しよう")
-        end
+        status_message = all_materials_possessed and "エンターで解放する" or "素材を揃えて解放しよう"
     else
-        table.insert(result_lines, "エンターで合成する")
-        table.insert(result_lines, "【完成品】")
+        status_message = "エンターで合成する"
+    end
+    table.insert(result_lines, {text = status_message, y = current_y_nq_hq.y})
+    current_y_nq_hq.y = current_y_nq_hq.y + panel_line_height
+    table.insert(result_lines, {text = "【完成品】", y = current_y_nq_hq.y})
+    current_y_nq_hq.y = current_y_nq_hq.y + panel_line_height
 
-        if recipe.result then
-            table.insert(result_lines, string.format("NQ %s(%d)", recipe.result.name, recipe.result.quantity or 1))
-            add_description_lines(result_lines, recipe.result.description)
-        end
-        if recipe.resultHQ1 then
-            table.insert(result_lines, string.format("HQ1 %s(%d)", recipe.resultHQ1.name, recipe.resultHQ1.quantity or 1))
-            add_description_lines(result_lines, recipe.resultHQ1.description)
-        end
-        if recipe.resultHQ2 then
-            table.insert(result_lines, string.format("HQ2 %s(%d)", recipe.resultHQ2.name, recipe.resultHQ2.quantity or 1))
-            add_description_lines(result_lines, recipe.resultHQ2.description)
-        end
-        if recipe.resultHQ3 then
-            table.insert(result_lines, string.format("HQ3 %s(%d)", recipe.resultHQ3.name, recipe.resultHQ3.quantity or 1))
-            add_description_lines(result_lines, recipe.resultHQ3.description)
+    local function add_nq_hq_item(item_data, prefix)
+        if item_data then
+            local start_y = current_y_nq_hq.y
+            table.insert(result_lines, {text = string.format("%s %s(%d)", prefix, item_data.name, item_data.quantity or 1), y = current_y_nq_hq.y})
+            current_y_nq_hq.y = current_y_nq_hq.y + panel_line_height
+            
+            local description_start_y = current_y_nq_hq.y
+            add_description_lines(result_lines, item_data.description, current_y_nq_hq, panel_line_height)
+            local end_y = current_y_nq_hq.y
+
+            table.insert(nq_hq_items_layout, {
+                y = start_y,
+                height = end_y - start_y,
+                item = item_data,
+                type = prefix
+            })
         end
     end
-    synthesis_result_panel_background = _update_panel(settings.synthesis_result_panel, synthesis_result_panel_texts, synthesis_result_panel_background, result_lines, 'left')
 
+    if recipe.isOpen == 1 then
+        add_nq_hq_item(recipe.result, "NQ")
+        add_nq_hq_item(recipe.resultHQ1, "HQ1")
+        add_nq_hq_item(recipe.resultHQ2, "HQ2")
+        add_nq_hq_item(recipe.resultHQ3, "HQ3")
+    end
+    
+    synthesis_result_panel_background = _update_panel(settings.synthesis_result_panel, synthesis_result_panel_texts, synthesis_result_panel_background, result_lines, 'left')
+    
     -- 素材パネルの表示
     local ingredient_lines = {}
-    table.insert(ingredient_lines, {text = "【素材】"})
-    if recipe.crystal then
-        local line_text = string.format("%s(%d/%d)", recipe.crystal.name or "(Unknown)", recipe.crystal.possession or 0, recipe.crystal.quantity or 1)
-        if (recipe.crystal.possession or 0) < (recipe.crystal.quantity or 1) then
-            line_text = string.format("\\cs(255,100,100)%s\\cr", line_text) -- 色コード埋め込み
+    local materials_layout = {} -- 選択可能な素材アイテムのレイアウト情報を保持
+    local current_y_materials = {y = settings.synthesis_ingredient_panel.pos.y + 5} -- Y座標参照
+
+    table.insert(ingredient_lines, {text = "【素材】", y = current_y_materials.y})
+    current_y_materials.y = current_y_materials.y + panel_line_height
+
+    local function add_material_item(item_data, is_crystal)
+        if item_data then
+            local start_y = current_y_materials.y
+            local line_text = string.format("%s(%d/%d)", item_data.name or "(Unknown)", item_data.possession or 0, item_data.quantity or 1)
+            if (item_data.possession or 0) < (item_data.quantity or 1) then
+                line_text = string.format("\\cs(255,100,100)%s\\cr", line_text)
+            end
+            table.insert(ingredient_lines, {text = line_text, y = current_y_materials.y})
+            current_y_materials.y = current_y_materials.y + panel_line_height
+
+            table.insert(materials_layout, {
+                y = start_y,
+                height = panel_line_height, -- 素材には説明文がないため固定高さ
+                item = item_data,
+                type = is_crystal and "crystal" or "ingredient"
+            })
         end
-        table.insert(ingredient_lines, {text = line_text})
     end
+
+    add_material_item(recipe.crystal, true)
     if recipe.ingredient then
         for _, ing in ipairs(recipe.ingredient) do
-            local line_text = string.format("%s(%d/%d)", ing.name or "(Unknown)", ing.possession or 0, ing.quantity or 1)
-            if (ing.possession or 0) < (ing.quantity or 1) then
-                line_text = string.format("\\cs(255,100,100)%s\\cr", line_text) -- 色コード埋め込み
-            end
-            table.insert(ingredient_lines, {text = line_text})
+            add_material_item(ing, false)
         end
     end
     synthesis_ingredient_panel_background = _update_panel(settings.synthesis_ingredient_panel, synthesis_ingredient_panel_texts, synthesis_ingredient_panel_background, ingredient_lines, 'left')
+
+    -- 以前のカーソルハイライトを破棄
+    if cursor_highlight_background_sub then
+        cursor_highlight_background_sub:destroy()
+        cursor_highlight_background_sub = nil
+    end
+
+    -- ここからカーソル描画ロジック
+    local active_sub_window = param.get_active_sub_window()
+
+    if param.get_sub_window_active() and (active_sub_window == 'nq_hq' or active_sub_window == 'materials') then
+        local cursor_index = 0
+        local target_layout = nil
+        local panel_settings = nil
+
+        if active_sub_window == 'nq_hq' then
+            cursor_index = param.get_nq_hq_cursor_index()
+            target_layout = nq_hq_items_layout
+            panel_settings = settings.synthesis_result_panel
+        elseif active_sub_window == 'materials' then
+            cursor_index = param.get_materials_cursor_index()
+            target_layout = materials_layout
+            panel_settings = settings.synthesis_ingredient_panel
+        end
+
+        local selected_item_layout = target_layout and target_layout[cursor_index]
+        if panel_settings and selected_item_layout then
+            local highlight_options = {
+                pos = { x = panel_settings.pos.x, y = selected_item_layout.y },
+                bg = { alpha = 100, red = 100, green = 100, blue = 150 }, -- 強調色
+                text = panel_settings.text,
+                flags = panel_settings.flags,
+            }
+            -- 背景サイズをアイテムの高さとパネルの幅に合わせる
+            local highlight_width = panel_settings.width
+            local highlight_height = selected_item_layout.height
+
+            local space_count = math.floor(highlight_width / (panel_settings.text.size * 0.6))
+            if space_count < 1 then space_count = 1 end
+            local line_count = math.ceil(highlight_height / panel_line_height)
+            if line_count < 1 then line_count = 1 end
+            local space_block = ""
+            for i = 1, line_count do
+                space_block = space_block .. string.rep(' ', space_count) .. '\n'
+            end
+
+            cursor_highlight_background_sub = texts.new(space_block, highlight_options) -- ここで代入
+            cursor_highlight_background_sub:show()
+        end
+    end
 end
 
 -- 合成レシピ詳細非表示
 function ui.hide_synthesis_details()
     synthesis_result_panel_background = _update_panel(settings.synthesis_result_panel, synthesis_result_panel_texts, synthesis_result_panel_background, nil)
     synthesis_ingredient_panel_background = _update_panel(settings.synthesis_ingredient_panel, synthesis_ingredient_panel_texts, synthesis_ingredient_panel_background, nil)
+    if cursor_highlight_background_sub then
+        cursor_highlight_background_sub:destroy()
+        cursor_highlight_background_sub = nil
+    end
 end
 
 -- 引き出しダイアログ表示

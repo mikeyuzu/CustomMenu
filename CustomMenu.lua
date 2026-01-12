@@ -80,6 +80,7 @@ function Close_Menu()
     ui.hide_menu_list()
     ui.hide_synthesis_details() -- サブウィンドウを非表示にする
     ui.show_indicator() -- インジケーターを再表示
+    menu_manager.exit_synthesis_sub_window_mode() -- サブウィンドウモードを終了
     if param.get_input_blocked() then
         input_handler.unblock_game_input()
         param.set_input_blocked(false)
@@ -255,11 +256,16 @@ function Handle_Confirm()
         return
     elseif string.find(tostring(selected.id), 'RECIPE_ITEM_') then
         -- レシピアイテムが選択された場合
-        if selected.isOpen == 0 and selected.allMaterialsPossessed then
-            Handle_Open_Recipe(selected)
-        else
-            -- 今回はエンターキーで何もしない（将来のタスクで合成処理をここに実装する可能性あり）
-            return
+        if selected.isOpen == 0 then
+            -- 未解放レシピの場合、materials_onlyモードでサブウィンドウに移行
+            menu_manager.enter_synthesis_sub_window_mode('materials_only')
+            ui.show_synthesis_details(selected.data)
+        elseif selected.isOpen == 1 then -- 解放済みレシピの場合
+            -- サブウィンドウモードに移行
+            menu_manager.enter_synthesis_sub_window_mode('full')
+            -- UIを再描画してサブウィンドウのカーソルを表示
+            -- ui.show_synthesis_detailsが現在のレシピデータを参照してカーソルを描画するようにする
+            ui.show_synthesis_details(selected.data)
         end
         return
     elseif selected.id == 'synthesis' then
@@ -571,6 +577,41 @@ windower.register_event('keyboard', function(dik, down, flags, blocked)
     end
 
     local action = input_handler.process_key(dik)
+
+    -- サブウィンドウモード中の入力処理
+    if menu_manager.is_in_synthesis_sub_window_mode() then
+        local current_recipe = menu_manager.get_selected_item() -- 現在選択中のレシピアイテム
+        if not current_recipe or not current_recipe.data then return true end
+        local current_recipe_data = current_recipe.data
+
+        local max_nq_hq_index = 0
+        if current_recipe_data.result then max_nq_hq_index = max_nq_hq_index + 1 end
+        if current_recipe_data.resultHQ1 then max_nq_hq_index = max_nq_hq_index + 1 end
+        if current_recipe_data.resultHQ2 then max_nq_hq_index = max_nq_hq_index + 1 end
+        if current_recipe_data.resultHQ3 then max_nq_hq_index = max_nq_hq_index + 1 end
+
+        local max_materials_index = 0
+        if current_recipe_data.crystal then max_materials_index = max_materials_index + 1 end
+        if current_recipe_data.ingredient then max_materials_index = max_materials_index + #current_recipe_data.ingredient end
+
+        if action == 'up' then
+            menu_manager.move_sub_window_cursor('up', param.get_active_sub_window() == 'nq_hq' and max_nq_hq_index or max_materials_index)
+            ui.show_synthesis_details(current_recipe_data)
+        elseif action == 'down' then
+            menu_manager.move_sub_window_cursor('down', param.get_active_sub_window() == 'nq_hq' and max_nq_hq_index or max_materials_index)
+            ui.show_synthesis_details(current_recipe_data)
+        elseif (action == 'left' or action == 'right') and param.get_sub_window_mode() == 'full' then
+            menu_manager.switch_active_sub_window()
+            ui.show_synthesis_details(current_recipe_data)
+        elseif action == 'confirm' then
+            -- TODO: サブウィンドウ内の選択アイテムを確定するロジック（将来のタスク）
+            print("サブウィンドウ内のアイテムが確定されました！")
+        elseif action == 'cancel' then -- ESC key
+            menu_manager.exit_synthesis_sub_window_mode()
+            ui.show_synthesis_details(current_recipe_data) -- カーソルを非表示にするために再描画
+        end
+        return true -- サブウィンドウモード中は他の入力をブロック
+    end
 
     -- 完了ダイアログが開いている場合の処理
     if param.get_success_dialog_open() then

@@ -1,4 +1,5 @@
 local messages = require('message')
+local param = require('param')
 local menu_manager = {}
 
 -- メニュー履歴スタック
@@ -198,6 +199,74 @@ function menu_manager.create_current_menu_from_data(data)
 
     Adjust_Scroll() -- 新しいアイテムリストに合わせてスクロール位置を調整
     return current_menu
+end
+
+-- 合成サブウィンドウモードに入る
+function menu_manager.enter_synthesis_sub_window_mode(mode)
+    mode = mode or 'full' -- デフォルトは 'full'
+    param.set_sub_window_active(true)
+    param.set_sub_window_mode(mode)
+    
+    if mode == 'materials_only' then
+        param.set_active_sub_window('materials')
+    else -- 'full'
+        param.set_active_sub_window('nq_hq')
+    end
+    
+    param.set_nq_hq_cursor_index(1)
+    param.set_materials_cursor_index(1)
+end
+
+-- 合成サブウィンドウモードから出る
+function menu_manager.exit_synthesis_sub_window_mode()
+    param.set_sub_window_active(false)
+    param.set_active_sub_window('none')
+    param.set_sub_window_mode('full') -- モードをリセット
+    param.set_nq_hq_cursor_index(1)
+    param.set_materials_cursor_index(1)
+end
+
+-- 合成サブウィンドウモード中かどうか
+function menu_manager.is_in_synthesis_sub_window_mode()
+    return param.get_sub_window_active()
+end
+
+-- サブウィンドウ内のカーソル移動
+function menu_manager.move_sub_window_cursor(direction, max_index)
+    if max_index == 0 then return end -- アイテムがない場合は何もしない
+
+    local current_window = param.get_active_sub_window()
+    if current_window == 'nq_hq' then
+        local current_cursor = param.get_nq_hq_cursor_index()
+        if direction == 'up' then
+            current_cursor = current_cursor - 1
+            if current_cursor < 1 then current_cursor = max_index end
+        elseif direction == 'down' then
+            current_cursor = current_cursor + 1
+            if current_cursor > max_index then current_cursor = 1 end
+        end
+        param.set_nq_hq_cursor_index(current_cursor)
+    elseif current_window == 'materials' then
+        local current_cursor = param.get_materials_cursor_index()
+        if direction == 'up' then
+            current_cursor = current_cursor - 1
+            if current_cursor < 1 then current_cursor = max_index end
+        elseif direction == 'down' then
+            current_cursor = current_cursor + 1
+            if current_cursor > max_index then current_cursor = 1 end
+        end
+        param.set_materials_cursor_index(current_cursor)
+    end
+end
+
+-- アクティブなサブウィンドウを切り替える
+function menu_manager.switch_active_sub_window()
+    local current_window = param.get_active_sub_window()
+    if current_window == 'nq_hq' then
+        param.set_active_sub_window('materials')
+    elseif current_window == 'materials' then
+        param.set_active_sub_window('nq_hq')
+    end
 end
 
 -- 戻れるか

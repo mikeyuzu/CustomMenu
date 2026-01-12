@@ -15,7 +15,13 @@ local state = {
     dialog_needs_redraw = false, -- ダイアログの再描画が必要か
     success_dialog_open = false, -- 完了ダイアログが開いているか
     open_recipe_dialog_open = false, -- レシピ解放ダイアログが開いているか
-    opened_recipe_name = nil -- 解放されたレシピ名
+    opened_recipe_name = nil, -- 解放されたレシピ名
+    sub_window_active = false,
+    active_sub_window = 'none', -- 'nq_hq' or 'materials'
+    nq_hq_cursor_index = 1,
+    materials_cursor_index = 1,
+    sub_window_mode = 'full', -- 'full' or 'materials_only'
+
 }
 
 function param.get_has_notification()
@@ -44,6 +50,47 @@ end
 
 function param.set_opened_recipe_name(name)
     state.opened_recipe_name = name
+end
+
+-- 新しいgetter/setter (サブウィンドウ状態用)
+function param.get_sub_window_active()
+    return state.sub_window_active
+end
+
+function param.set_sub_window_active(active)
+    state.sub_window_active = active
+end
+
+function param.get_active_sub_window()
+    return state.active_sub_window
+end
+
+function param.set_active_sub_window(window)
+    state.active_sub_window = window
+end
+
+function param.get_nq_hq_cursor_index()
+    return state.nq_hq_cursor_index
+end
+
+function param.set_nq_hq_cursor_index(index)
+    state.nq_hq_cursor_index = index
+end
+
+function param.get_materials_cursor_index()
+    return state.materials_cursor_index
+end
+
+function param.set_materials_cursor_index(index)
+    state.materials_cursor_index = index
+end
+
+function param.get_sub_window_mode()
+    return state.sub_window_mode
+end
+
+function param.set_sub_window_mode(mode)
+    state.sub_window_mode = mode
 end
 
 function param.set_has_notification(has_notification)

@@ -934,8 +934,16 @@ end
 function ui.create_success_dialog(message_text)
     ui.destroy_success_dialog() -- 既存のダイアログをクリア
 
+    -- メッセージの行数をカウント
+    local _, line_count = string.gsub(message_text, "\n", "")
+    line_count = line_count + 1 -- 最低1行
+
+    -- 行数に基づいて高さを計算 (1行あたり20px + 上下パディング + ボタン領域)
+    local dynamic_height = 80 + (line_count * 20)
+    if dynamic_height < 120 then dynamic_height = 120 end -- 最小高さ
+
     local dialog_x = (windower.get_windower_settings().ui_x_res / 2) - (dialog_width / 2)
-    local dialog_y = (windower.get_windower_settings().ui_y_res / 2) - (dialog_height / 2)
+    local dialog_y = (windower.get_windower_settings().ui_y_res / 2) - (dynamic_height / 2)
 
     -- 背景
     local bg_options = {
@@ -944,7 +952,9 @@ function ui.create_success_dialog(message_text)
         text = { size = 12, font = 'MS Gothic' },
         flags = { bold = true, draggable = false }
     }
-    success_dialog_background = texts.new(string.rep(string.rep(' ', 40) .. '\n', 10), bg_options)
+    -- 背景行数も動的に
+    local bg_line_count = math.ceil(dynamic_height / 16)
+    success_dialog_background = texts.new(string.rep(string.rep(' ', 40) .. '\n', bg_line_count), bg_options)
     success_dialog_background:show()
 
     -- メッセージテキスト
@@ -959,7 +969,7 @@ function ui.create_success_dialog(message_text)
     -- OKボタン
     local button_width = 60
     local button_x = dialog_x + (dialog_width / 2) - (button_width / 2)
-    local button_y = dialog_y + dialog_height - 48
+    local button_y = dialog_y + dynamic_height - 48
 
     -- ボタン背景 (選択状態)
     success_dialog_button_bg = texts.new(string.rep(' ', (button_width / 6) + 1) .. '\n' .. string.rep(' ', (button_width / 6) + 1), {
@@ -1050,8 +1060,16 @@ end
 function ui.create_error_dialog(message_text)
     ui.destroy_error_dialog() -- 既存のダイアログをクリア
 
+    -- メッセージの行数をカウント
+    local _, line_count = string.gsub(message_text, "\n", "")
+    line_count = line_count + 1 -- 最低1行
+
+    -- 行数に基づいて高さを計算 (1行あたり20px + 上下パディング + ボタン領域)
+    local dynamic_height = 80 + (line_count * 20)
+    if dynamic_height < 120 then dynamic_height = 120 end -- 最小高さ
+
     local dialog_x = (windower.get_windower_settings().ui_x_res / 2) - (dialog_width / 2)
-    local dialog_y = (windower.get_windower_settings().ui_y_res / 2) - (dialog_height / 2)
+    local dialog_y = (windower.get_windower_settings().ui_y_res / 2) - (dynamic_height / 2)
 
     -- 背景
     local bg_options = {
@@ -1060,7 +1078,9 @@ function ui.create_error_dialog(message_text)
         text = { size = 12, font = 'MS Gothic' },
         flags = { bold = true, draggable = false }
     }
-    error_dialog_background = texts.new(string.rep(string.rep(' ', 40) .. '\n', 10), bg_options)
+    -- 背景行数も動的に
+    local bg_line_count = math.ceil(dynamic_height / 16)
+    error_dialog_background = texts.new(string.rep(string.rep(' ', 40) .. '\n', bg_line_count), bg_options)
     error_dialog_background:show()
 
     -- メッセージテキスト
@@ -1075,7 +1095,7 @@ function ui.create_error_dialog(message_text)
     -- OKボタン
     local button_width = 60
     local button_x = dialog_x + (dialog_width / 2) - (button_width / 2)
-    local button_y = dialog_y + dialog_height - 48
+    local button_y = dialog_y + dynamic_height - 48
 
     -- ボタン背景 (選択状態)
     error_dialog_button_bg = texts.new(string.rep(' ', (button_width / 6) + 1) .. '\n' .. string.rep(' ', (button_width / 6) + 1), {

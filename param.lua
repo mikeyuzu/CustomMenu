@@ -22,14 +22,23 @@ local state = {
     materials_cursor_index = 1,
     sub_window_mode = 'full', -- 'full' or 'materials_only'
 
-}
-
-function param.get_has_notification()
-    return state.has_notification
-end
-function param.get_success_dialog_open()
-    return state.success_dialog_open
-end
+    craft_confirm_dialog_open = false, -- 合成確認ダイアログが開いているか
+    craft_confirm_item_name = nil, -- 合成するアイテム名
+    craft_confirm_selected_button = 'no', -- 合成確認ダイアログで選択されているボタン ('yes' or 'no')
+        craft_confirm_recipe_data = nil, -- 合成確認中のレシピデータ
+        craft_confirm_nq_hq_index = 0, -- 合成確認中のNQ/HQインデックス
+    
+        error_dialog_open = false, -- エラーダイアログが開いているか
+        error_dialog_message = nil, -- エラーダイアログのメッセージ
+    }
+    
+    function param.get_has_notification()
+        return state.has_notification
+    end
+    function param.get_success_dialog_open()
+        return state.success_dialog_open
+    end
+    
 
 function param.set_success_dialog_open(open)
     state.success_dialog_open = open
@@ -91,6 +100,63 @@ end
 
 function param.set_sub_window_mode(mode)
     state.sub_window_mode = mode
+end
+
+-- 合成確認ダイアログ用
+function param.get_craft_confirm_dialog_open()
+    return state.craft_confirm_dialog_open
+end
+
+function param.set_craft_confirm_dialog_open(open)
+    state.craft_confirm_dialog_open = open
+end
+
+function param.get_craft_confirm_item_name()
+    return state.craft_confirm_item_name
+end
+
+function param.set_craft_confirm_item_name(item_name)
+    state.craft_confirm_item_name = item_name
+end
+
+function param.get_craft_confirm_selected_button()
+    return state.craft_confirm_selected_button
+end
+
+function param.set_craft_confirm_selected_button(button)
+    state.craft_confirm_selected_button = button
+end
+
+function param.get_craft_confirm_recipe_data()
+    return state.craft_confirm_recipe_data
+end
+
+function param.set_craft_confirm_recipe_data(data)
+    state.craft_confirm_recipe_data = data
+end
+
+function param.get_craft_confirm_nq_hq_index()
+    return state.craft_confirm_nq_hq_index
+end
+
+function param.set_craft_confirm_nq_hq_index(index)
+    state.craft_confirm_nq_hq_index = index
+end
+
+function param.get_error_dialog_open()
+    return state.error_dialog_open
+end
+
+function param.set_error_dialog_open(open)
+    state.error_dialog_open = open
+end
+
+function param.get_error_dialog_message()
+    return state.error_dialog_message
+end
+
+function param.set_error_dialog_message(message)
+    state.error_dialog_message = message
 end
 
 function param.set_has_notification(has_notification)

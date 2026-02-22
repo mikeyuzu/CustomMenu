@@ -405,6 +405,36 @@ function http_handler.open_recipe(chara_id, recipe_id, callback)
     end)()
 end
 
+-- アイテム合成API呼び出し
+function http_handler.synthesize_item(chara_id, skill_id, recipe_id, item_id, sub_id, quantity, callback)
+    local params = {
+        charaId = chara_id,
+        skillId = skill_id,
+        recipeId = recipe_id,
+        itemId = item_id,
+        subId = sub_id,
+        quantity = quantity
+    }
+    local query_string = build_query_string(params)
+    local request_url = config.base_url .. '/SynthesizeItem?' .. query_string
+
+    coroutine.wrap(function()
+        local success, data_string, status_code, error_message = http_handler.custom_request(request_url, 'GET')
+        local data = nil
+
+        if success then
+            local ok, decoded_data = pcall(json_decode_func, data_string)
+            if ok then
+                data = decoded_data
+            else
+                success = false
+                error_message = "JSON decode error for synthesize item: " .. tostring(decoded_data)
+            end
+        end
+        callback(success, data, error_message)
+    end)()
+end
+
 -- カスタムHTTPリクエスト実装例
 -- 実際に使用する場合はこちらを拡張
 function http_handler.custom_request(url_str, method, headers, body)

@@ -73,6 +73,9 @@ local messages = {
         quantity_change = '個数 %d/%d (上下で変更)',
         dialog_get_item = '取り出す',
         dialog_cancel = 'キャンセル',
+        confirm_synthesis = '%sを合成しますか？',
+        synthesis_success_material_storage = '%sを合成しました\n素材倉庫に格納されました。\n\n%s Lv%dになりました。',
+        synthesis_success_post = '%sを合成しました\nポストから受け取ってください。\n\n%s Lv%dになりました。',
     },
 
     synergy_skill = {
@@ -97,6 +100,8 @@ local messages = {
 
     retrieval_success = '%sを取り出しました。\nポストから受け取ってください。',
     ok_button = 'OK',
+    yes_button = 'はい',
+    no_button = 'いいえ',
 }
 
 return messages

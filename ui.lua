@@ -4,7 +4,7 @@ local param = require('param')
 local ui = {}
 
 local dialog_width = 300
-local dialog_height = 120
+local dialog_height = 160
 
     -- UI設定
 local settings = {
@@ -728,7 +728,7 @@ function ui.create_withdrawal_dialog()
         text = { size = 12, font = 'MS Gothic' },
         flags = { bold = true, draggable = false }
     }
-    dialog_background = texts.new(string.rep(string.rep(' ', 40) .. '\n', 7), bg_options)
+    dialog_background = texts.new(string.rep(string.rep(' ', 40) .. '\n', 10), bg_options)
     dialog_background:show()
 
     local line_y = dialog_y + 10
@@ -769,6 +769,134 @@ function ui.update_withdrawal_dialog(update_type)
         quantity_text_obj:text(string.format('個数 %d/%d (上下で変更)', withdraw_quantity, max_quantity))
     elseif update_type == 'buttons' then
         update_dialog_buttons()
+    end
+end
+
+-- 合成確認ダイアログのUI要素
+local craft_confirm_dialog_texts = {}
+local craft_confirm_dialog_background = nil
+local craft_confirm_dialog_button_bg = {}
+local craft_confirm_dialog_button_texts = {}
+
+-- ボタンの背景とテキストを更新する内部関数 (合成確認用)
+local function update_craft_confirm_dialog_buttons()
+    -- 既存のボタン要素をクリア
+    for _, bg_obj in ipairs(craft_confirm_dialog_button_bg) do
+        bg_obj:destroy()
+    end
+    craft_confirm_dialog_button_bg = {}
+    for _, text_obj in ipairs(craft_confirm_dialog_button_texts) do
+        text_obj:destroy()
+    end
+    craft_confirm_dialog_button_texts = {}
+
+    local selected_button = param.get_craft_confirm_selected_button()
+    local item_name = param.get_craft_confirm_item_name()
+    if not item_name then return end
+    
+    local dialog_x = (windower.get_windower_settings().ui_x_res / 2) - (dialog_width / 2)
+    local dialog_y = (windower.get_windower_settings().ui_y_res / 2) - (dialog_height / 2)
+    local line_y = dialog_y + 10 + 50 -- メッセージの下に配置
+
+    -- ボタンの位置とサイズ
+    local button_y = line_y
+    local no_x = dialog_x + (dialog_width / 2) - 80
+    local yes_x = dialog_x + (dialog_width / 2) + 20
+    local button_width = 60
+    
+    -- 1. 背景を描画
+    local function create_button_bg(x, y, is_selected)
+        local button_bg_options = {
+            pos = { x = x, y = y },
+            bg = { alpha = 255, red = 50, green = 50, blue = 50 },
+            text = { size = 12, font = 'MS Gothic' },
+            flags = { bold = true, draggable = false }
+        }
+        if is_selected then
+            button_bg_options.bg = { alpha = 255, red = 100, green = 100, blue = 150 }
+        end
+        local button_bg = texts.new(string.rep(' ', (button_width / 6) + 1) .. '\n' .. string.rep(' ', (button_width / 6) + 1), button_bg_options)
+        button_bg:show()
+        table.insert(craft_confirm_dialog_button_bg, button_bg)
+    end
+    create_button_bg(no_x, button_y, selected_button == 'no')
+    create_button_bg(yes_x, button_y, selected_button == 'yes')
+
+    -- 2. テキストを描画
+    local no_text = texts.new(messages.no_button, {
+        pos = { x = no_x + (button_width / 2) - 12, y = button_y + 2 + 6 },
+        text = { size = 12, font = 'MS Gothic', color = {255,255,255,255}, align = 'center' },
+        bg = { alpha = 0 }
+    })
+    table.insert(craft_confirm_dialog_button_texts, no_text)
+    no_text:show()
+
+    local yes_text = texts.new(messages.yes_button, {
+        pos = { x = yes_x + (button_width / 2) - 12, y = button_y + 2 + 6 },
+        text = { size = 12, font = 'MS Gothic', color = {255,255,255,255}, align = 'center' },
+        bg = { alpha = 0 }
+    })
+    table.insert(craft_confirm_dialog_button_texts, yes_text)
+    yes_text:show()
+end
+
+-- 合成確認ダイアログのUI要素を破棄
+function ui.destroy_craft_confirm_dialog()
+    for _, text_obj in ipairs(craft_confirm_dialog_texts) do
+        text_obj:destroy()
+    end
+    craft_confirm_dialog_texts = {}
+    if craft_confirm_dialog_background then
+        craft_confirm_dialog_background:destroy()
+        craft_confirm_dialog_background = nil
+    end
+    for _, bg_obj in ipairs(craft_confirm_dialog_button_bg) do
+        bg_obj:destroy()
+    end
+    craft_confirm_dialog_button_bg = {}
+    for _, text_obj in ipairs(craft_confirm_dialog_button_texts) do
+        text_obj:destroy()
+    end
+    craft_confirm_dialog_button_texts = {}
+end
+
+-- 合成確認ダイアログを作成
+function ui.create_craft_confirm_dialog(item_name)
+    ui.destroy_craft_confirm_dialog() -- 念のため既存のものをクリア
+
+    local dialog_x = (windower.get_windower_settings().ui_x_res / 2) - (dialog_width / 2)
+    local dialog_y = (windower.get_windower_settings().ui_y_res / 2) - (dialog_height / 2)
+
+    local bg_options = {
+        pos = { x = dialog_x, y = dialog_y },
+        bg = { alpha = 230, red = 0, green = 0, blue = 0 },
+        text = { size = 12, font = 'MS Gothic' },
+        flags = { bold = true, draggable = false }
+    }
+    craft_confirm_dialog_background = texts.new(string.rep(string.rep(' ', 40) .. '\n', 10), bg_options)
+    craft_confirm_dialog_background:show()
+
+    local line_y = dialog_y + 20
+    local text_x_offset = 15
+
+    local message_text = string.format(messages.synthesis_menu.confirm_synthesis, item_name)
+    local message_obj = texts.new(message_text, {
+        pos = { x = dialog_x + text_x_offset, y = line_y },
+        text = { size = 12, font = 'MS Gothic', color = {255,255,255,255} },
+        bg = { alpha = 0 }
+    })
+    table.insert(craft_confirm_dialog_texts, message_obj)
+    message_obj:show()
+
+    update_craft_confirm_dialog_buttons() -- 初回のボタンを描画
+end
+
+-- 合成確認ダイアログの表示内容を部分的に更新 (現状ボタンのみ)
+function ui.update_craft_confirm_dialog(update_type)
+    if not param.get_craft_confirm_dialog_open() then return end
+
+    if update_type == 'buttons' then
+        update_craft_confirm_dialog_buttons()
     end
 end
 
@@ -816,7 +944,7 @@ function ui.create_success_dialog(message_text)
         text = { size = 12, font = 'MS Gothic' },
         flags = { bold = true, draggable = false }
     }
-    success_dialog_background = texts.new(string.rep(string.rep(' ', 40) .. '\n', 7), bg_options)
+    success_dialog_background = texts.new(string.rep(string.rep(' ', 40) .. '\n', 10), bg_options)
     success_dialog_background:show()
 
     -- メッセージテキスト
@@ -877,7 +1005,8 @@ function ui.create_open_recipe_dialog(recipe_name)
         text = { size = 12, font = 'MS Gothic' },
         flags = { bold = true, draggable = false }
     }
-    open_recipe_dialog_background = texts.new(string.rep(string.rep(' ', 40) .. '\n', 7), bg_options)
+
+    open_recipe_dialog_background = texts.new(string.rep(string.rep(' ', 40) .. '\n', 10), bg_options)
     open_recipe_dialog_background:show()
 
     -- メッセージテキスト
@@ -891,5 +1020,79 @@ function ui.create_open_recipe_dialog(recipe_name)
     message_obj:show()
 end
 
+-- エラーダイアログのUI要素
+local error_dialog_texts = {}
+local error_dialog_background = nil
+local error_dialog_button_bg = nil
+local error_dialog_button_text = nil
+
+-- エラーダイアログを破棄
+function ui.destroy_error_dialog()
+    for _, text_obj in ipairs(error_dialog_texts) do
+        text_obj:destroy()
+    end
+    error_dialog_texts = {}
+    if error_dialog_background then
+        error_dialog_background:destroy()
+        error_dialog_background = nil
+    end
+    if error_dialog_button_bg then
+        error_dialog_button_bg:destroy()
+        error_dialog_button_bg = nil
+    end
+    if error_dialog_button_text then
+        error_dialog_button_text:destroy()
+        error_dialog_button_text = nil
+    end
+end
+
+-- エラーダイアログを作成
+function ui.create_error_dialog(message_text)
+    ui.destroy_error_dialog() -- 既存のダイアログをクリア
+
+    local dialog_x = (windower.get_windower_settings().ui_x_res / 2) - (dialog_width / 2)
+    local dialog_y = (windower.get_windower_settings().ui_y_res / 2) - (dialog_height / 2)
+
+    -- 背景
+    local bg_options = {
+        pos = { x = dialog_x, y = dialog_y },
+        bg = { alpha = 230, red = 30, green = 0, blue = 0 }, -- 暗い赤色
+        text = { size = 12, font = 'MS Gothic' },
+        flags = { bold = true, draggable = false }
+    }
+    error_dialog_background = texts.new(string.rep(string.rep(' ', 40) .. '\n', 10), bg_options)
+    error_dialog_background:show()
+
+    -- メッセージテキスト
+    local message_obj = texts.new(message_text, {
+        pos = { x = dialog_x + 15, y = dialog_y + 20 },
+        text = { size = 12, font = 'MS Gothic', color = {255,255,255,255} },
+        bg = { alpha = 0 }
+    })
+    table.insert(error_dialog_texts, message_obj)
+    message_obj:show()
+
+    -- OKボタン
+    local button_width = 60
+    local button_x = dialog_x + (dialog_width / 2) - (button_width / 2)
+    local button_y = dialog_y + dialog_height - 48
+
+    -- ボタン背景 (選択状態)
+    error_dialog_button_bg = texts.new(string.rep(' ', (button_width / 6) + 1) .. '\n' .. string.rep(' ', (button_width / 6) + 1), {
+        pos = { x = button_x, y = button_y },
+        bg = { alpha = 255, red = 100, green = 100, blue = 150 }, -- 選択色
+        text = { size = 12, font = 'MS Gothic' },
+        flags = { bold = true, draggable = false }
+    })
+    error_dialog_button_bg:show()
+
+    -- ボタンテキスト
+    error_dialog_button_text = texts.new(messages.ok_button, {
+        pos = { x = button_x + (button_width / 2) + 6, y = button_y + 2 + 6 },
+        text = { size = 12, font = 'MS Gothic', color = {255,255,255,255}, align = 'center' },
+        bg = { alpha = 0 }
+    })
+    error_dialog_button_text:show()
+end
 
 return ui

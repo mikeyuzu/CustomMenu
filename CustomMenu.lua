@@ -53,6 +53,30 @@ local http_handler = require('http_handler')
 local param = require('param')
 local synergy_category_generator = require('synergy_category_generator')
 
+-- テーブルダンプ用のデバッグ関数
+local function table_dump(t, indent, visited)
+    indent = indent or ""
+    visited = visited or {}
+    local str = ""
+    if type(t) ~= 'table' then
+        return tostring(t)
+    end
+    if visited[t] then
+        return "<recursive table>\n"
+    end
+    visited[t] = true
+
+    for k, v in pairs(t) do
+        str = str .. indent .. tostring(k) .. " = "
+        if type(v) == 'table' then
+            str = str .. "{\n" .. table_dump(v, indent .. "  ", visited) .. indent .. "}\n"
+        else
+            str = str .. tostring(v) .. "\n"
+        end
+    end
+    return str
+end
+
 -- 初期化
 windower.register_event('load', function()
     print('CustomMenu loaded')
@@ -99,10 +123,127 @@ function Close_Dialog()
     ui.destroy_withdrawal_dialog() -- UI要素を破棄
 end
 
+-- 合成確認ダイアログを閉じる
+function Close_Craft_Confirm_Dialog()
+    param.set_craft_confirm_dialog_open(false)
+    param.set_craft_confirm_item_name(nil)
+    param.set_craft_confirm_selected_button('no')
+    param.set_craft_confirm_recipe_data(nil)
+    param.set_craft_confirm_nq_hq_index(0)
+    ui.destroy_craft_confirm_dialog()
+end
+
+-- エラーダイアログを閉じる
+function Close_Error_Dialog()
+    param.set_error_dialog_open(false)
+    param.set_error_dialog_message(nil)
+    ui.destroy_error_dialog()
+end
+
+-- 合成スキル名のマッピング (スキルID -> 日本語名)
+local synth_skills_map_jp = {
+    [48] = '錬金術', [49] = '調理', [51] = '彫金', [52] = '裁縫',
+    [53] = '革細工', [54] = '木工', [55] = '鍛冶', [56] = '骨細工'
+}
+
+-- ギルドIDからスキルIDへのマッピングを逆引き
+local guild_id_to_skill_id_map = {
+    [param.guild_ids.WOODWORKING] = 54,
+    [param.guild_ids.SMITHING] = 55,
+    [param.guild_ids.GOLDSMITHING] = 51,
+    [param.guild_ids.WEAVING] = 52, -- WEAVINGは裁縫
+    [param.guild_ids.LEATHERCRAFT] = 53,
+    [param.guild_ids.BONECRAFT] = 56,
+    [param.guild_ids.ALCHEMY] = 48,
+    [param.guild_ids.COOKING] = 49,
+}
+
+-- 合成を実行する
+function Handle_Craft_Synthesis()
+    local chara_id = param.get_chara_id()
+    local recipe_data = param.get_craft_confirm_recipe_data()
+    local nq_hq_index = param.get_craft_confirm_nq_hq_index()
+
+    if not chara_id or not recipe_data or not nq_hq_index then
+        param.set_error_dialog_open(true)
+        param.set_error_dialog_message("エラー: 合成に必要な情報が不足しています。")
+        ui.create_error_dialog(param.get_error_dialog_message())
+        return
+    end
+
+    local result_item = nil
+    if nq_hq_index == 1 then
+        result_item = recipe_data.result
+    elseif nq_hq_index == 2 then
+        result_item = recipe_data.resultHQ1
+    elseif nq_hq_index == 3 then
+        result_item = recipe_data.resultHQ2
+    elseif nq_hq_index == 4 then
+        result_item = recipe_data.resultHQ3
+    end
+
+    if not result_item then
+        param.set_error_dialog_open(true)
+        param.set_error_dialog_message("エラー: 合成するアイテムが見つかりません。")
+        ui.create_error_dialog(param.get_error_dialog_message())
+        return
+    end
+
+    local item_id = result_item.itemId or result_item.id
+    local sub_id = result_item.subId
+    local item_name = result_item.name
+
+    local primary_guild_id = recipe_data.guildId
+    local skill_id_for_api = guild_id_to_skill_id_map[primary_guild_id]
+
+    if not skill_id_for_api then
+        param.set_error_dialog_open(true)
+        param.set_error_dialog_message("エラー: 合成スキルのIDを特定できません。")
+        ui.create_error_dialog(param.get_error_dialog_message())
+        return
+    end
+
+    http_handler.synthesize_item(chara_id, skill_id_for_api, recipe_data.id, item_id, sub_id, 1, function(success, data, error_message)
+        if success and data then
+            local storage_type = data.StorageType or data.storageType or 1 -- デフォルトはポスト
+            local updated_skill_id = data.SkillId or data.skillId or skill_id_for_api
+            local updated_skill_level = data.SkillLevel or data.skillLevel or 0
+            local skill_name_jp = synth_skills_map_jp[updated_skill_id] or "不明なスキル"
+
+            local success_message = ""
+            if storage_type == 0 then
+                success_message = string.format(messages.synthesis_menu.synthesis_success_material_storage, item_name, skill_name_jp, updated_skill_level)
+            elseif storage_type == 1 then
+                success_message = string.format(messages.synthesis_menu.synthesis_success_post, item_name, skill_name_jp, updated_skill_level)
+            else
+                success_message = string.format("合成に成功しました: %s\n%s Lv%dになりました。", item_name, skill_name_jp, updated_skill_level)
+            end
+            
+            ui.create_success_dialog(success_message)
+            param.set_success_dialog_open(true)
+
+            -- 合成成功後、メニューを更新するためにインベントリを再フェッチする
+            http_handler.fetch_synergy_inventory(chara_id, function(fetch_success, inv_data, inv_error)
+                if fetch_success and inv_data then
+                    Refresh_Menu_After_Inventory_Update(inv_data)
+                else
+                    print('ERROR: シナジーインベントリの再フェッチに失敗しました: ' .. (inv_error or '不明なエラー'))
+                end
+            end)
+
+        else
+            param.set_error_dialog_open(true)
+            param.set_error_dialog_message("合成に失敗しました: " .. (error_message or "不明なエラー"))
+            ui.create_error_dialog(param.get_error_dialog_message())
+        end
+    end)
+end
+
 -- 「ギルド別リスト」が選択された後の処理（ギルドリスト表示）
 local function handle_guild_list_selection()
     local guild_menu_items = {}
     local guild_definitions = messages.synthesis_menu.guild_recipes.items
+
 
     for _, guild in ipairs(guild_definitions) do
         table.insert(guild_menu_items, {id = 'GUILD_SELECTED_' .. guild.id, label = guild.label})
@@ -159,6 +300,7 @@ local function fetch_and_display_synthesis_recipes(guild_id, rank)
 
                     -- レシピデータの素材に所持数を付与する
                     for _, recipe in ipairs(recipe_data) do
+                        recipe.guildId = recipe.guildId or guild_id -- ギルドIDを補完
                         if recipe.crystal then
                             local key = tostring(recipe.crystal.itemId) .. "_" .. tostring(recipe.crystal.subId)
                             recipe.crystal.possession = inventory_map[key] or 0
@@ -219,6 +361,161 @@ local function fetch_and_display_synthesis_recipes(guild_id, rank)
             print('Failed to load synthesis recipes: ' .. (recipe_error or 'Unknown error'))
         end
     end)
+end
+
+
+-- プレイヤーの合成スキルレベルを取得するヘルパー関数
+local function get_player_synth_skills()
+    local player = windower.ffxi.get_player()
+    if not player or not player.skills then
+        return nil
+    end
+
+    local skills = player.skills
+    local player_synth_skills = {}
+
+    -- `param.guild_ids` を使って、ギルドIDからスキル名、そしてプレイヤーのスキルレベルを取得する
+    -- ギルドIDとスキル名のマッピングを保持
+    local guild_id_to_skill_name_map = {
+        [param.guild_ids.WOODWORKING] = 'woodworking',
+        [param.guild_ids.SMITHING] = 'smithing',
+        [param.guild_ids.GOLDSMITHING] = 'goldsmithing',
+        [param.guild_ids.WEAVING] = 'clothcraft', -- param.guild_ids.WEAVING は clothcraftに対応
+        [param.guild_ids.LEATHERCRAFT] = 'leathercraft',
+        [param.guild_ids.BONECRAFT] = 'bonecraft',
+        [param.guild_ids.ALCHEMY] = 'alchemy',
+        [param.guild_ids.COOKING] = 'cooking',
+    }
+
+    for guild_id, skill_name_en in pairs(guild_id_to_skill_name_map) do
+        player_synth_skills[guild_id] = skills[skill_name_en] or 0
+    end
+    return player_synth_skills
+end
+
+-- 合成確定処理
+function Handle_Craft_Confirmation()
+    local selected_recipe_item = menu_manager.get_selected_item()
+
+    if not selected_recipe_item or not selected_recipe_item.data then
+        print("ERROR: レシピ情報が見つかりません。")
+        windower.add_to_chat(123, "エラー: レシピ情報が見つかりません。")
+        menu_manager.exit_synthesis_sub_window_mode()
+        ui.update_menu_display(param.get_current_menu())
+        return
+    end
+
+    local recipe_data = selected_recipe_item.data
+    local selected_nq_hq_index = param.get_nq_hq_cursor_index()
+    
+    -- NQ結果、または代わりとなるアイテム情報の存在確認
+    local result_item = recipe_data.result or recipe_data.resultHQ1 or recipe_data.resultHQ2 or recipe_data.resultHQ3
+    if not result_item then
+        print("ERROR: 結果アイテム情報がありません。")
+        param.set_error_dialog_open(true)
+        param.set_error_dialog_message("エラー: アイテムデータがありません。")
+        ui.create_error_dialog(param.get_error_dialog_message())
+        menu_manager.exit_synthesis_sub_window_mode()
+        ui.update_menu_display(param.get_current_menu())
+        return
+    end
+
+    local item_name = result_item.name -- 合成アイテム名
+
+    -- 1. 材料チェック
+    local has_all_materials = true
+    local missing_material_name = ""
+
+    if recipe_data.crystal then
+        if (recipe_data.crystal.possession or 0) < (recipe_data.crystal.quantity or 1) then
+            has_all_materials = false
+            missing_material_name = recipe_data.crystal.name or "不明なクリスタル"
+        end
+    end
+    if has_all_materials and recipe_data.ingredient then
+        for _, ing in ipairs(recipe_data.ingredient) do
+            if (ing.possession or 0) < (ing.quantity or 1) then
+                has_all_materials = false
+                missing_material_name = ing.name or "不明な素材"
+                break
+            end
+        end
+    end
+
+    if not has_all_materials then
+        param.set_error_dialog_open(true)
+        param.set_error_dialog_message(string.format("素材が足りません: %s", missing_material_name))
+        ui.create_error_dialog(param.get_error_dialog_message())
+        menu_manager.exit_synthesis_sub_window_mode()
+        ui.update_menu_display(param.get_current_menu())
+        return
+    end
+
+    -- 2. スキルレベルチェック
+    local player_skills = get_player_synth_skills()
+    if not player_skills then
+        param.set_error_dialog_open(true)
+        param.set_error_dialog_message("エラー: スキル情報を取得できません。ログインし直してください。")
+        ui.create_error_dialog(param.get_error_dialog_message())
+        menu_manager.exit_synthesis_sub_window_mode()
+        ui.update_menu_display(param.get_current_menu())
+        return
+    end
+
+    local primary_guild_id = recipe_data.guildId -- レシピデータからギルドIDを取得
+    local craft_ranks = recipe_data.craftRank -- レシピの要求スキルレベル (テーブルまたは数値)
+
+    -- primary_guild_idに対応するランクを取得 (数値キーと文字列キーの両方を考慮、存在しなければ0)
+    local required_craft_rank = 0
+    if craft_ranks then
+        if type(craft_ranks) == 'table' then
+            required_craft_rank = craft_ranks[primary_guild_id] or craft_ranks[tostring(primary_guild_id)] or 0
+        else
+            required_craft_rank = tonumber(craft_ranks) or 0
+        end
+    end
+
+    local player_skill_level = (primary_guild_id and player_skills[primary_guild_id]) or 0
+    local required_level_modifier = 0
+    local skill_check_message = "合成レベルが足りません。"
+
+    if selected_nq_hq_index == 2 then -- HQ1
+        item_name = (recipe_data.resultHQ1 and recipe_data.resultHQ1.name) or (item_name .. "(HQ1)")
+    elseif selected_nq_hq_index == 3 then -- HQ2
+        if required_craft_rank > 0 then
+            required_level_modifier = 5
+        end
+        skill_check_message = "合成レベルが足りません。\nHQ2は合成レベル＋５が必要です。"
+        item_name = (recipe_data.resultHQ2 and recipe_data.resultHQ2.name) or (item_name .. "(HQ2)")
+    elseif selected_nq_hq_index == 4 then -- HQ3
+        if required_craft_rank > 0 then
+            required_level_modifier = 10
+        end
+        skill_check_message = "合成レベルが足りません。\nHQ3は合成レベル＋１０が必要です。"
+        item_name = (recipe_data.resultHQ3 and recipe_data.resultHQ3.name) or (item_name .. "(HQ3)")
+    end
+    
+    local final_required_level = required_craft_rank + required_level_modifier
+
+    -- スキルレベルチェック (HQ1, HQ2, HQ3 の場合のみ実行。NQは無条件)
+    if selected_nq_hq_index > 1 and player_skill_level < final_required_level then
+        param.set_error_dialog_open(true)
+        param.set_error_dialog_message(skill_check_message)
+        ui.create_error_dialog(param.get_error_dialog_message())
+        menu_manager.exit_synthesis_sub_window_mode()
+        ui.update_menu_display(param.get_current_menu())
+        return
+    end
+
+    -- 全てのチェックをパスした場合、合成確認ダイアログを表示
+    param.set_craft_confirm_dialog_open(true)
+    param.set_craft_confirm_item_name(item_name)
+    param.set_craft_confirm_selected_button('no') 
+    param.set_craft_confirm_recipe_data(recipe_data) 
+    param.set_craft_confirm_nq_hq_index(selected_nq_hq_index) 
+
+    ui.create_craft_confirm_dialog(item_name)
+    menu_manager.exit_synthesis_sub_window_mode()
 end
 
 -- 決定ボタン処理
@@ -416,23 +713,68 @@ function Refresh_Menu_After_Inventory_Update(updated_cache)
         return
     end
 
-    -- アイテムリストかどうかの判定を強化
-    local is_item_list = false
-    if current_menu_data.id == "ITEM_LIST_MENU" then
-        is_item_list = true
-    elseif current_menu_data.items and #current_menu_data.items > 0 and current_menu_data.items[1].id and string.find(current_menu_data.items[1].id, 'ITEM_SELECTED_') then
-        -- メニュー項目の中身を見て、アイテムリストであるかを判断する
-        is_item_list = true
+    -- ギルドレシピリストかどうかの判定 (アイテムIDに RECIPE_ITEM_ が含まれる場合)
+    local is_recipe_list = false
+    if current_menu_data.items and #current_menu_data.items > 0 and current_menu_data.items[1].id and string.find(tostring(current_menu_data.items[1].id), 'RECIPE_ITEM_') then
+        is_recipe_list = true
     end
 
-    if is_item_list then
-        -- アイテムリストの親ID（カテゴリID）を使って、そのカテゴリのアイテムを再生成
+    -- アイテムリスト（合成倉庫の個別アイテム一覧）かどうかの判定
+    local is_item_list = (current_menu_data.id == "ITEM_LIST_MENU")
+
+    if is_recipe_list then
+        -- レシピリストの場合は、各レシピの所持数を更新する
+        local inventory_map = {}
+        for _, item in ipairs(updated_cache) do
+            local key = tostring(item.id) .. "_" .. tostring(item.subId)
+            inventory_map[key] = item.quantity
+        end
+
+        for _, item in ipairs(current_menu_data.items) do
+            if item.data then
+                local recipe = item.data
+                if recipe.crystal then
+                    local key = tostring(recipe.crystal.itemId) .. "_" .. tostring(recipe.crystal.subId)
+                    recipe.crystal.possession = inventory_map[key] or 0
+                end
+                if recipe.ingredient then
+                    for _, ing in ipairs(recipe.ingredient) do
+                        local key = tostring(ing.itemId) .. "_" .. tostring(ing.subId)
+                        ing.possession = inventory_map[key] or 0
+                    end
+                end
+
+                -- 素材が全て揃っているか再判定
+                local all_materials_possessed = true
+                if recipe.crystal and (recipe.crystal.possession or 0) < (recipe.crystal.quantity or 1) then
+                    all_materials_possessed = false
+                end
+                if all_materials_possessed and recipe.ingredient then
+                    for _, ing in ipairs(recipe.ingredient) do
+                        if (ing.possession or 0) < (ing.quantity or 1) then
+                            all_materials_possessed = false
+                            break
+                        end
+                    end
+                end
+                item.allMaterialsPossessed = all_materials_possessed
+            end
+        end
+
+        -- メニューを再描画（スタックは操作しない）
+        ui.show_menu_list(current_menu_data)
+        -- 詳細ウィンドウも更新
+        local selected = menu_manager.get_selected_item()
+        if selected and selected.data then
+            ui.show_synthesis_details(selected.data)
+        end
+
+    elseif is_item_list then
+        -- 合成倉庫のアイテムリストの場合
         local category_id = current_menu_data.parent_id
         if category_id then
-            -- カテゴリ内の全アイテムをフィルタリング
             local filtered_items = {}
             for _, item in ipairs(updated_cache) do
-                -- 親IDがauctionHouseIdに該当する場合のフィルタリング
                 if item.auctionHouseId == category_id then
                     table.insert(filtered_items, item)
                 end
@@ -446,7 +788,6 @@ function Refresh_Menu_After_Inventory_Update(updated_cache)
             ui.show_menu_list(param.get_current_menu())
         else
             -- parent_idがない場合は、安全のため一つ前のカテゴリに戻る
-            -- ただし、ITEM_LIST_MENUは必ず親カテゴリを持つはずなので、このパスは基本的には通らない想定
             if menu_manager.can_go_back() then
                 local prev_menu = menu_manager.go_back()
                 if prev_menu ~= nil then
@@ -461,7 +802,8 @@ function Refresh_Menu_After_Inventory_Update(updated_cache)
     else
         -- 通常のカテゴリメニューの再生成
         local generated_menu = synergy_category_generator.generate_menu_data(updated_cache, current_menu_data.id)
-        param.set_current_menu(menu_manager.create_submenu(generated_menu))
+        -- スタックを積まないように現在メニューを更新
+        param.set_current_menu(menu_manager.create_current_menu_from_data(generated_menu))
         ui.show_menu_list(param.get_current_menu())
     end
 end
@@ -604,13 +946,41 @@ windower.register_event('keyboard', function(dik, down, flags, blocked)
             menu_manager.switch_active_sub_window()
             ui.show_synthesis_details(current_recipe_data)
         elseif action == 'confirm' then
-            -- TODO: サブウィンドウ内の選択アイテムを確定するロジック（将来のタスク）
-            print("サブウィンドウ内のアイテムが確定されました！")
+            Handle_Craft_Confirmation()
         elseif action == 'cancel' then -- ESC key
             menu_manager.exit_synthesis_sub_window_mode()
             ui.show_synthesis_details(current_recipe_data) -- カーソルを非表示にするために再描画
         end
         return true -- サブウィンドウモード中は他の入力をブロック
+    end
+
+    -- 合成確認ダイアログが開いている場合の処理 (追加)
+    if param.get_craft_confirm_dialog_open() then
+        local selected_button = param.get_craft_confirm_selected_button()
+        if action == 'left' or action == 'right' then
+            if selected_button == 'no' then
+                param.set_craft_confirm_selected_button('yes')
+            else
+                param.set_craft_confirm_selected_button('no')
+            end
+            ui.update_craft_confirm_dialog('buttons')
+        elseif action == 'confirm' then
+            if selected_button == 'yes' then
+                Handle_Craft_Synthesis()
+            end
+            Close_Craft_Confirm_Dialog()
+        elseif action == 'cancel' then
+            Close_Craft_Confirm_Dialog()
+        end
+        return true -- 他の入力をブロック
+    end
+
+    -- エラーダイアログが開いている場合の処理 (追加)
+    if param.get_error_dialog_open() then
+        if action == 'confirm' or action == 'cancel' then
+            Close_Error_Dialog()
+        end
+        return true -- 他の入力をブロック
     end
 
     -- 完了ダイアログが開いている場合の処理
@@ -760,7 +1130,7 @@ windower.register_event('keyboard', function(dik, down, flags, blocked)
         Close_Menu()
     end
 
-    return false
+    return true
 end)
 
 -- フレーム更新

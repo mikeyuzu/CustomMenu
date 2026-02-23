@@ -88,6 +88,35 @@ local category_definitions = {
     }
 }
 
+-- レベル帯の定義
+local level_ranges_full = {
+    { label = 'Lv1～10', min = 1, max = 10 },
+    { label = 'Lv11～20', min = 11, max = 20 },
+    { label = 'Lv21～30', min = 21, max = 30 },
+    { label = 'Lv31～40', min = 31, max = 40 },
+    { label = 'Lv41～50', min = 41, max = 50 },
+    { label = 'Lv51～60', min = 51, max = 60 },
+    { label = 'Lv61～70', min = 61, max = 70 },
+    { label = 'Lv71～80', min = 71, max = 80 },
+    { label = 'Lv81～90', min = 81, max = 90 },
+    { label = 'Lv91～99', min = 91, max = 99 },
+    { label = 'ILv100～109', min = 100, max = 109 },
+    { label = 'ILv110～119', min = 110, max = 119 },
+}
+
+local level_ranges_to_99 = {
+    { label = 'Lv1～10', min = 1, max = 10 },
+    { label = 'Lv11～20', min = 11, max = 20 },
+    { label = 'Lv21～30', min = 21, max = 30 },
+    { label = 'Lv31～40', min = 31, max = 40 },
+    { label = 'Lv41～50', min = 41, max = 50 },
+    { label = 'Lv51～60', min = 51, max = 60 },
+    { label = 'Lv61～70', min = 61, max = 70 },
+    { label = 'Lv71～80', min = 71, max = 80 },
+    { label = 'Lv81～90', min = 81, max = 90 },
+    { label = 'Lv91～99', min = 91, max = 99 },
+}
+
 -- アイテムリストに含まれるAuctionHouseIdのセットを作成
 local function get_active_auction_house_ids(synergy_inventory_items)
     local active_ids = {}
@@ -171,6 +200,168 @@ function synergy_category_generator.generate_menu_data(synergy_inventory_items, 
     return {
         title = title,
         items = menu_items
+    }
+end
+
+-- アイテム別レシピ用のメニュー生成
+function synergy_category_generator.generate_item_recipe_menu(current_menu_id)
+    local menu_to_generate = nil
+    local title = messages.synthesis_menu.items.item_list.label
+
+    -- 1. トップレベル (武器、防具など 7項目に限定)
+    if not current_menu_id or current_menu_id == 'ITEM_LIST_RECIPES_ROOT' then
+        local target_items = {
+            { id = 'WEAPON_MENU', label = '武器' },
+            { id = 'DEFENSE_MENU', label = '防具' },
+            { id = param.auction_house_ids.MEDICINES, label = '薬品' },
+            { id = param.auction_house_ids.FURNISHINGS, label = '調度品' },
+            { id = 'MATERIAL_MENU', label = '素材' },
+            { id = 'FOOD_MENU', label = '料理' },
+            { id = 'OTHER_MENU', label = 'その他' }
+        }
+        
+        local menu_items = {}
+        for _, item in ipairs(target_items) do
+            table.insert(menu_items, { id = item.id, label = item.label, description = "" })
+        end
+        
+        return {
+            title = messages.synthesis_menu.items.item_list.label,
+            items = menu_items,
+            id = 'ITEM_LIST_RECIPES_ROOT'
+        }
+    else
+        -- 2. カテゴリの探索 (再帰的に全カテゴリから探す)
+        local function find_menu_node(nodes, target_id)
+            for _, node in ipairs(nodes) do
+                if node.id == target_id then
+                    return node
+                elseif node.children then
+                    local found = find_menu_node(node.children, target_id)
+                    if found then return found end
+                end
+            end
+            return nil
+        end
+
+        local node = find_menu_node(category_definitions.main, current_menu_id)
+        if node then
+            if node.children then
+                -- 中間カテゴリ (例: 武器 -> 格闘武器)
+                local children = node.children
+                
+                -- 追加作業.txt の指定に基づく特殊なフラット化・フィルタリング処理
+                if current_menu_id == 'WEAPON_MENU' then
+                    -- 武器カテゴリをフラット化 (矢・弾その他 の階層を排除)
+                    children = {}
+                    for _, child in ipairs(node.children) do
+                        if child.id == 'RANGE_WEAPON_MENU' then
+                            for _, grand_child in ipairs(child.children) do
+                                table.insert(children, grand_child)
+                            end
+                        else
+                            table.insert(children, child)
+                        end
+                    end
+                elseif current_menu_id == 'FOOD_MENU' then
+                    -- 料理カテゴリは食材などを除外し、COOKING_MENU (肉・卵料理等) の中身だけを表示
+                    for _, child in ipairs(node.children) do
+                        if child.id == 'COOKING_MENU' then
+                            children = child.children
+                            break
+                        end
+                    end
+                elseif current_menu_id == 'OTHER_MENU' then
+                    -- その他カテゴリは カード、呪物、雑貨、忍具、からくり部品 を表示
+                    local target_other_ids = {
+                        [param.auction_house_ids.CARDS] = true,
+                        [param.auction_house_ids.CURSED_ITEMS] = true,
+                        [param.auction_house_ids.MISC] = true,
+                        [param.auction_house_ids.NINJA_TOOLS] = true,
+                        [param.auction_house_ids.AUTOMATON] = true
+                    }
+                    children = {}
+                    for _, child in ipairs(node.children) do
+                        if target_other_ids[child.id] then
+                            table.insert(children, child)
+                        end
+                    end
+                end
+
+                menu_to_generate = children
+                title = node.label
+            elseif type(node.id) == 'number' then
+                -- リーフカテゴリ (詳細カテゴリ)
+                local ah_id = node.id
+                
+                -- レベル帯が必要なカテゴリか判定
+                local ranges = nil
+                -- 防具のアクセサリ枠 (首、腰、耳、指、背)
+                local accessories = {
+                    [param.auction_house_ids.NECK] = true,
+                    [param.auction_house_ids.WAIST] = true,
+                    [param.auction_house_ids.EARRINGS] = true,
+                    [param.auction_house_ids.RINGS] = true,
+                    [param.auction_house_ids.BACK] = true
+                }
+                
+                -- 武器(1-15)と防具(16-21)はフルセット、アクセサリは99まで、それ以外はレベルなし
+                if ah_id >= 1 and ah_id <= 21 then
+                    ranges = level_ranges_full
+                elseif accessories[ah_id] then
+                    ranges = level_ranges_to_99
+                end
+
+                if ranges then
+                    -- レベル帯を表示
+                    local menu_items = {}
+                    for _, range in ipairs(ranges) do
+                        table.insert(menu_items, {
+                            id = string.format('ITEM_RECIPE_LEVEL_%d_%d_%d', ah_id, range.min, range.max),
+                            label = range.label,
+                            auction_house_id = ah_id,
+                            min_level = range.min,
+                            max_level = range.max
+                        })
+                    end
+                    return {
+                        title = node.label,
+                        items = menu_items,
+                        id = current_menu_id
+                    }
+                else
+                    -- レベル帯なし: 直接レシピを表示するための擬似的なレベル帯を生成 (0-255)
+                    local menu_items = {{
+                        id = string.format('ITEM_RECIPE_LEVEL_%d_0_255', ah_id),
+                        label = "レシピリストを表示",
+                        is_auto_trigger = true -- 自動遷移用フラグ
+                    }}
+                    return {
+                        title = node.label,
+                        items = menu_items,
+                        id = current_menu_id
+                    }
+                end
+            end
+        end
+    end
+
+    -- カテゴリリストの生成 (在庫に関わらず全表示)
+    local menu_items = {}
+    if menu_to_generate then
+        for _, category_node in ipairs(menu_to_generate) do
+            table.insert(menu_items, {
+                id = category_node.id,
+                label = category_node.label,
+                description = ""
+            })
+        end
+    end
+
+    return {
+        title = title,
+        items = menu_items,
+        id = current_menu_id
     }
 end
 

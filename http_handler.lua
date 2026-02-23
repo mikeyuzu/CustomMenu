@@ -384,6 +384,34 @@ function http_handler.fetch_synthesis_recipes(chara_id, guild_id, rank, callback
     end)()
 end
 
+-- アイテム別合成レシピ取得API呼び出し (仮実装)
+function http_handler.fetch_synthesis_recipes_by_item(chara_id, auction_house_id, min_level, max_level, callback)
+    local params = {
+        charaId = chara_id,
+        auctionHouseId = auction_house_id,
+        minLevel = min_level,
+        maxLevel = max_level
+    }
+    local query_string = build_query_string(params)
+    local request_url = config.base_url .. '/GetSynthesisRecipesByItem?' .. query_string
+
+    coroutine.wrap(function()
+        local success, data_string, status_code, error_message = http_handler.custom_request(request_url, 'GET')
+        local data = nil
+
+        if success then
+            local ok, decoded_data = pcall(json_decode_func, data_string)
+            if ok then
+                data = decoded_data
+            else
+                success = false
+                error_message = "JSON decode error for item synthesis recipes: " .. tostring(decoded_data)
+            end
+        end
+        callback(success, data, error_message)
+    end)()
+end
+
 -- レシピ解放API呼び出し
 function http_handler.open_recipe(chara_id, recipe_id, callback)
     local params = {

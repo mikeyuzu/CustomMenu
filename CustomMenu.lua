@@ -99,11 +99,85 @@ local function Handle_Synthesis_Storage()
     end)
 end
 
--- アイテム別レシピ表示 (今後実装)
-local function Handle_Item_List_Recipes()
-    -- 現状はメッセージ表示のみ
-    print('アイテム別レシピ機能は開発中です。')
-    -- 本来はここでアイテム種別ごとのサブメニューを表示する
+-- アイテム別レシピ表示
+local function Handle_Item_List_Recipes(menu_id)
+    local generated_menu = synergy_category_generator.generate_item_recipe_menu(menu_id or 'ITEM_LIST_RECIPES_ROOT')
+    
+    -- 項目が1つだけで、自動実行フラグがある場合は即座にAPIを叩く (レベル選択がないカテゴリ用)
+    if #generated_menu.items == 1 and generated_menu.items[1].is_auto_trigger then
+        local parts = generated_menu.items[1].id:split('_')
+        local ah_id = tonumber(parts[4])
+        local min_lvl = tonumber(parts[5])
+        local max_lvl = tonumber(parts[6])
+        if ah_id and min_lvl and max_lvl then
+            Fetch_And_Display_Item_Recipes(ah_id, min_lvl, max_lvl, generated_menu.title)
+            return
+        end
+    end
+
+    param.set_current_menu(menu_manager.create_submenu(generated_menu))
+    ui.show_menu_list(param.get_current_menu())
+end
+
+-- 階層を辿ってレシピリストを取得・表示する (アイテム別)
+local function Fetch_And_Display_Item_Recipes(ah_id, min_lvl, max_lvl, title)
+    local chara_id = param.get_chara_id() or windower.ffxi.get_player().id
+    param.set_chara_id(chara_id)
+
+    http_handler.fetch_synthesis_recipes_by_item(chara_id, ah_id, min_lvl, max_lvl, function(success, recipe_data, error_message)
+        if success and recipe_data then
+            -- 既存のインベントリキャッシュを利用して所持状況を反映
+            local inventory_cache = param.get_synergy_inventory_cache()
+            local inventory_map = {}
+            if inventory_cache then
+                for _, item in ipairs(inventory_cache) do
+                    local key = tostring(item.id) .. "_" .. tostring(item.subId)
+                    inventory_map[key] = item.quantity
+                end
+            end
+
+            local recipe_items = {}
+            for _, recipe in ipairs(recipe_data) do
+                -- 素材の所持数補完
+                if recipe.crystal then
+                    recipe.crystal.possession = inventory_map[tostring(recipe.crystal.itemId) .. "_" .. tostring(recipe.crystal.subId)] or 0
+                end
+                if recipe.ingredient then
+                    for _, ing in ipairs(recipe.ingredient) do
+                        ing.possession = inventory_map[tostring(ing.itemId) .. "_" .. tostring(ing.subId)] or 0
+                    end
+                end
+
+                -- 所持判定
+                local all_possessed = true
+                if recipe.crystal and (recipe.crystal.possession or 0) < (recipe.crystal.quantity or 1) then all_possessed = false end
+                if all_possessed and recipe.ingredient then
+                    for _, ing in ipairs(recipe.ingredient) do
+                        if (ing.possession or 0) < (ing.quantity or 1) then all_possessed = false break end
+                    end
+                end
+
+                table.insert(recipe_items, {
+                    id = 'RECIPE_ITEM_' .. tostring(recipe.id),
+                    label = recipe.result and recipe.result.name or "不明なレシピ",
+                    data = recipe,
+                    isOpen = recipe.isOpen,
+                    allMaterialsPossessed = all_possessed
+                })
+            end
+
+            local recipe_list_menu_data = {
+                title = title or "レシピリスト",
+                items = #recipe_items > 0 and recipe_items or {{ id = 'empty', label = "レシピは見つかりませんでした。" }}
+            }
+            param.set_current_menu(menu_manager.create_submenu(recipe_list_menu_data))
+            ui.hide_synthesis_details()
+            ui.show_menu_list(param.get_current_menu())
+            if #recipe_items > 0 then ui.show_synthesis_details(recipe_data[1]) end
+        else
+            print('Failed to load item recipes: ' .. (error_message or 'Unknown error'))
+        end
+    end)
 end
 
 -- 汎用APIデータ取得
@@ -619,6 +693,18 @@ function Handle_Confirm()
         return type(id) == 'number'
     end
 
+    -- アイテム別レシピのレベル帯選択
+    if string.find(tostring(selected.id), 'ITEM_RECIPE_LEVEL_') then
+        local parts = selected.id:split('_')
+        local ah_id = tonumber(parts[4])
+        local min_lvl = tonumber(parts[5])
+        local max_lvl = tonumber(parts[6])
+        if ah_id and min_lvl and max_lvl then
+            Fetch_And_Display_Item_Recipes(ah_id, min_lvl, max_lvl, selected.label)
+        end
+        return
+    end
+
     if string.find(tostring(selected.id), 'GUILD_SELECTED_') then
         local guild_id_str = string.match(tostring(selected.id), 'GUILD_SELECTED_(%w+)')
         if guild_id_str then
@@ -652,40 +738,14 @@ function Handle_Confirm()
         end
         return
     elseif string.find(tostring(selected.id), '_MENU') or is_auction_house_id(selected.id) or string.find(tostring(selected.id), 'ITEM_SELECTED_') then
-        local inventory_cache = param.get_synergy_inventory_cache()
-        if not inventory_cache then
-            print('エラー: シナジーインベントリキャッシュがありません。')
-            return
-        end
-
-        if is_auction_house_id(selected.id) then
-            local selected_auction_house_id = selected.id
-            local filtered_items = {}
-            for _, item in ipairs(inventory_cache) do
-                if item.auctionHouseId == selected_auction_house_id then
-                    table.insert(filtered_items, item)
-                end
+        -- アイテムリストから個別のアイテムが選択された場合
+        if string.find(tostring(selected.id), 'ITEM_SELECTED_') then
+            local inventory_cache = param.get_synergy_inventory_cache()
+            if not inventory_cache then
+                print('エラー: シナジーインベントリキャッシュがありません。')
+                return
             end
 
-            if #filtered_items > 0 then
-                local menu_title = selected.label and (selected.label .. " リスト") or "アイテムリスト"
-                local item_list_menu_data = menu_manager.create_item_list_menu(filtered_items, menu_title)
-                param.set_current_menu(menu_manager.create_submenu(item_list_menu_data))
-                ui.show_menu_list(param.get_current_menu())
-            else
-                local empty_message_data = {
-                    title = selected.label and (selected.label .. " リスト") or "アイテムリスト",
-                    items = {{ id = 'empty_message', label = "アイテムは見つかりませんでした。", description = ""}},
-                    cursor = 1,
-                    scroll_pos = 1,
-                    page_size = 1
-                }
-                param.set_current_menu(menu_manager.create_submenu(empty_message_data))
-                ui.show_menu_list(param.get_current_menu())
-            end
-
-        elseif string.find(tostring(selected.id), 'ITEM_SELECTED_') then
-            -- アイテムリストから個別のアイテムが選択された場合
             local original_item_id_str = string.match(tostring(selected.id), 'ITEM_SELECTED_(%d+)')
             local original_item_id = tonumber(original_item_id_str)
             local selected_item_data = nil
@@ -707,22 +767,73 @@ function Handle_Confirm()
             else
                 print(string.format('ERROR: 選択されたアイテムのデータが見つかりません (ID: %s, SubID: %s)', tostring(original_item_id), tostring(selected.subId)))
             end
-        else -- 'WEAPON_MENU'のようなサブメニューカテゴリの場合
-            local generated_menu = synergy_category_generator.generate_menu_data(inventory_cache, selected.id)
-            if #generated_menu.items == 0 and generated_menu.empty_message then
-                 local empty_menu_data = {
-                    title = generated_menu.title,
-                    items = {{ id = 'empty_message', label = generated_menu.empty_message, description = ""}},
-                    cursor = 1,
-                    scroll_pos = 1,
-                    page_size = 1
-                }
-                param.set_current_menu(menu_manager.create_submenu(empty_menu_data))
-                ui.show_menu_list(param.get_current_menu())
-                print(generated_menu.empty_message)
-            else
-                param.set_current_menu(menu_manager.create_submenu(generated_menu))
-                ui.show_menu_list(param.get_current_menu())
+            return
+        end
+
+        -- カテゴリ選択 (中間階層)
+        local current_menu_data = param.get_current_menu()
+        local is_item_recipe_mode = false
+        if current_menu_data then
+            if current_menu_data.id == 'ITEM_LIST_RECIPES_ROOT' or string.find(tostring(current_menu_data.id), '_MENU') or is_auction_house_id(current_menu_data.id) then
+                -- 親メニューがレシピ検索ルートまたはカテゴリの場合、レシピ検索モードとみなす
+                -- ただし、合成倉庫から遷移してきた場合は除く必要があるため、もう少し厳密な判定が必要な場合もあるが、
+                -- 現状は遷移元がレシピ検索開始ならこのフラグを立てる
+                is_item_recipe_mode = true
+            end
+        end
+
+        if is_item_recipe_mode then
+            Handle_Item_List_Recipes(selected.id)
+        else
+            -- 従来の合成倉庫カテゴリ表示 (在庫チェックあり)
+            local inventory_cache = param.get_synergy_inventory_cache()
+            if not inventory_cache then
+                print('エラー: シナジーインベントリキャッシュがありません。')
+                return
+            end
+
+            if is_auction_house_id(selected.id) then
+                local selected_auction_house_id = selected.id
+                local filtered_items = {}
+                for _, item in ipairs(inventory_cache) do
+                    if item.auctionHouseId == selected_auction_house_id then
+                        table.insert(filtered_items, item)
+                    end
+                end
+
+                if #filtered_items > 0 then
+                    local menu_title = selected.label and (selected.label .. " リスト") or "アイテムリスト"
+                    local item_list_menu_data = menu_manager.create_item_list_menu(filtered_items, menu_title)
+                    param.set_current_menu(menu_manager.create_submenu(item_list_menu_data))
+                    ui.show_menu_list(param.get_current_menu())
+                else
+                    local empty_message_data = {
+                        title = selected.label and (selected.label .. " リスト") or "アイテムリスト",
+                        items = {{ id = 'empty_message', label = "アイテムは見つかりませんでした。", description = ""}},
+                        cursor = 1,
+                        scroll_pos = 1,
+                        page_size = 1
+                    }
+                    param.set_current_menu(menu_manager.create_submenu(empty_message_data))
+                    ui.show_menu_list(param.get_current_menu())
+                end
+            else -- 'WEAPON_MENU'のようなサブメニューカテゴリの場合
+                local generated_menu = synergy_category_generator.generate_menu_data(inventory_cache, selected.id)
+                if #generated_menu.items == 0 and generated_menu.empty_message then
+                     local empty_menu_data = {
+                        title = generated_menu.title,
+                        items = {{ id = 'empty_message', label = generated_menu.empty_message, description = ""}},
+                        cursor = 1,
+                        scroll_pos = 1,
+                        page_size = 1
+                    }
+                    param.set_current_menu(menu_manager.create_submenu(empty_menu_data))
+                    ui.show_menu_list(param.get_current_menu())
+                    print(generated_menu.empty_message)
+                else
+                    param.set_current_menu(menu_manager.create_submenu(generated_menu))
+                    ui.show_menu_list(param.get_current_menu())
+                end
             end
         end
     elseif selected.id == 'synthesis' then

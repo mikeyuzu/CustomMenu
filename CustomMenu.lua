@@ -99,26 +99,6 @@ local function Handle_Synthesis_Storage()
     end)
 end
 
--- アイテム別レシピ表示
-local function Handle_Item_List_Recipes(menu_id)
-    local generated_menu = synergy_category_generator.generate_item_recipe_menu(menu_id or 'ITEM_LIST_RECIPES_ROOT')
-    
-    -- 項目が1つだけで、自動実行フラグがある場合は即座にAPIを叩く (レベル選択がないカテゴリ用)
-    if #generated_menu.items == 1 and generated_menu.items[1].is_auto_trigger then
-        local parts = generated_menu.items[1].id:split('_')
-        local ah_id = tonumber(parts[4])
-        local min_lvl = tonumber(parts[5])
-        local max_lvl = tonumber(parts[6])
-        if ah_id and min_lvl and max_lvl then
-            Fetch_And_Display_Item_Recipes(ah_id, min_lvl, max_lvl, generated_menu.title)
-            return
-        end
-    end
-
-    param.set_current_menu(menu_manager.create_submenu(generated_menu))
-    ui.show_menu_list(param.get_current_menu())
-end
-
 -- 階層を辿ってレシピリストを取得・表示する (アイテム別)
 local function Fetch_And_Display_Item_Recipes(ah_id, min_lvl, max_lvl, title)
     local chara_id = param.get_chara_id() or windower.ffxi.get_player().id
@@ -178,6 +158,28 @@ local function Fetch_And_Display_Item_Recipes(ah_id, min_lvl, max_lvl, title)
             print('Failed to load item recipes: ' .. (error_message or 'Unknown error'))
         end
     end)
+end
+
+-- アイテム別レシピ表示
+local function Handle_Item_List_Recipes(menu_id)
+    local generated_menu = synergy_category_generator.generate_item_recipe_menu(menu_id or 'ITEM_LIST_RECIPES_ROOT')
+    
+    -- 項目が1つだけで、自動実行フラグがある場合は即座にAPIを叩く (レベル選択がないカテゴリ用)
+    if #generated_menu.items == 1 and generated_menu.items[1].is_auto_trigger then
+        ---@type any
+        local id = generated_menu.items[1].id
+        local parts = id:split('_')
+        local ah_id = tonumber(parts[4])
+        local min_lvl = tonumber(parts[5])
+        local max_lvl = tonumber(parts[6])
+        if ah_id and min_lvl and max_lvl then
+            Fetch_And_Display_Item_Recipes(ah_id, min_lvl, max_lvl, generated_menu.title)
+            return
+        end
+    end
+
+    param.set_current_menu(menu_manager.create_submenu(generated_menu))
+    ui.show_menu_list(param.get_current_menu())
 end
 
 -- 汎用APIデータ取得

@@ -13,11 +13,13 @@ menu_definitions.types = {
 menu_definitions.main_menu = {
     title = messages.main_menu.title,
     items = {
-        { id = 'eminence', label = messages.main_menu.items.eminence, type = menu_definitions.types.FETCH },
-        { id = 'synthesis', label = messages.main_menu.items.synthesis, type = menu_definitions.types.SUBMENU, submenu_id = 'synthesis_menu' },
         { id = 'collection', label = messages.main_menu.items.collection, type = menu_definitions.types.FETCH },
-        { id = 'quest', label = messages.main_menu.items.quest, type = menu_definitions.types.FETCH },
-        { id = 'mission', label = messages.main_menu.items.mission, type = menu_definitions.types.FETCH },
+        { id = 'synthesis', label = messages.main_menu.items.synthesis, type = menu_definitions.types.SUBMENU, submenu_id = 'synthesis_menu' },
+        { id = 'eminence', label = messages.main_menu.items.eminence, type = menu_definitions.types.FETCH },
+        { id = 'quest_items', label = messages.main_menu.items.quest_items, type = menu_definitions.types.FETCH },
+        { id = 'contents', label = messages.main_menu.items.contents, type = menu_definitions.types.FETCH },
+        { id = 'notice', label = messages.main_menu.items.notice, type = menu_definitions.types.FETCH },
+        { id = 'settings', label = messages.main_menu.items.settings, type = menu_definitions.types.FUNCTION, func_name = 'Handle_Settings_Menu' },
     }
 }
 

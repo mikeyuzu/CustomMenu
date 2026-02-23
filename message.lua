@@ -6,11 +6,13 @@ local messages = {
     main_menu = {
         title = 'カスタムメニュー',
         items = {
-            eminence = 'エミネンス・レコード',
-            synthesis = '合成',
             collection = '図鑑',
-            quest = 'クエスト',
-            mission = 'ミッション',
+            synthesis = '合成',
+            eminence = 'エミネンス・レコード',
+            quest_items = 'クエストアイテム',
+            contents = 'コンテンツ',
+            notice = 'お知らせ',
+            settings = '設定',
         }
     },
 

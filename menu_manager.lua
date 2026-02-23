@@ -1,5 +1,6 @@
 local messages = require('message')
 local param = require('param')
+local menu_definitions = require('menu_definitions')
 local menu_manager = {}
 
 -- メニュー履歴スタック
@@ -7,22 +8,6 @@ local menu_stack = {}
 
 -- 現在のメニューデータ
 local current_menu = nil
-
--- メインメニューの定義
-local main_menu_items = {
-    { id = 'eminence', label = messages.main_menu.items.eminence },
-    { id = 'synthesis', label = messages.main_menu.items.synthesis },
-    { id = 'collection', label = messages.main_menu.items.collection },
-    { id = 'quest', label = messages.main_menu.items.quest },
-    { id = 'mission', label = messages.main_menu.items.mission }
-}
-
--- 合成メニューの定義
-local synthesis_menu_items = {
-    { id = 'synthesis_storage', label = messages.synthesis_menu.items.storage.label, description = messages.synthesis_menu.items.storage.description },
-    { id = 'item_list', label = messages.synthesis_menu.items.item_list.label, description = messages.synthesis_menu.items.item_list.description },
-    { id = 'guild_list', label = messages.synthesis_menu.items.guild_list.label, description = messages.synthesis_menu.items.guild_list.description }
-}
 
 -- 初期化
 function menu_manager.initialize()
@@ -32,9 +17,10 @@ end
 
 -- メインメニュー取得
 function menu_manager.get_main_menu()
+    local definition = menu_definitions.main_menu
     current_menu = {
-        title = messages.main_menu.title,
-        items = main_menu_items,
+        title = definition.title,
+        items = definition.items,
         cursor = 1,
         scroll_pos = 1,
         page_size = 10
@@ -45,9 +31,10 @@ end
 
 -- 合成メニューのデータ取得
 function menu_manager.get_synthesis_menu_data()
+    local definition = menu_definitions.synthesis_menu
     return {
-        title = messages.synthesis_menu.title,
-        items = synthesis_menu_items
+        title = definition.title,
+        items = definition.items
     }
 end
 

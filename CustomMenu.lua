@@ -51,7 +51,72 @@ local menu_manager = require('menu_manager')
 local input_handler = require('input_handler')
 local http_handler = require('http_handler')
 local param = require('param')
+local menu_definitions = require('menu_definitions')
 local synergy_category_generator = require('synergy_category_generator')
+
+-- 合成メニュー表示
+local function Handle_Synthesis_Menu()
+    local synthesis_menu_data = menu_manager.get_synthesis_menu_data()
+    param.set_current_menu(menu_manager.create_submenu(synthesis_menu_data))
+    ui.show_menu_list(param.get_current_menu())
+end
+
+-- 合成倉庫表示
+local function Handle_Synthesis_Storage()
+    local player = windower.ffxi.get_player()
+    if not player or not player.id then
+        print('エラー: キャラクターIDが取得できません。')
+        return
+    end
+    local chara_id = player.id
+    param.set_chara_id(chara_id) -- chara_idをparamに保存
+
+    http_handler.fetch_synergy_inventory(chara_id, function(success, data, error_message)
+        if success and data then
+            param.set_synergy_inventory_cache(data) -- データをキャッシュ
+
+            -- メインのシナジーカテゴリメニューを生成
+            local generated_menu = synergy_category_generator.generate_menu_data(data, 'main')
+
+            if #generated_menu.items == 0 and generated_menu.empty_message then
+                local empty_menu_data = {
+                    title = generated_menu.title,
+                    items = {{ id = 'empty_message', label = generated_menu.empty_message, description = ""}},
+                    cursor = 1,
+                    scroll_pos = 1,
+                    page_size = 1
+                }
+                param.set_current_menu(menu_manager.create_submenu(empty_menu_data))
+                ui.show_menu_list(param.get_current_menu())
+                print(generated_menu.empty_message)
+            else
+                param.set_current_menu(menu_manager.create_submenu(generated_menu))
+                ui.show_menu_list(param.get_current_menu())
+            end
+        else
+            print('Failed to load synergy inventory data: ' .. (error_message or 'Unknown error'))
+        end
+    end)
+end
+
+-- アイテム別レシピ表示 (今後実装)
+local function Handle_Item_List_Recipes()
+    -- 現状はメッセージ表示のみ
+    print('アイテム別レシピ機能は開発中です。')
+    -- 本来はここでアイテム種別ごとのサブメニューを表示する
+end
+
+-- 汎用APIデータ取得
+local function Handle_Generic_Fetch(menu_id)
+    http_handler.fetch_menu_data(menu_id, function(success, data)
+        if success then
+            param.set_current_menu(menu_manager.create_submenu(data))
+            ui.show_menu_list(param.get_current_menu())
+        else
+            print('Failed to load menu data for: ' .. tostring(menu_id))
+        end
+    end)
+end
 
 -- テーブルダンプ用のデバッグ関数
 local function table_dump(t, indent, visited)
@@ -523,16 +588,38 @@ function Handle_Confirm()
     local selected = menu_manager.get_selected_item()
     if not selected then return end
 
-    -- ヘルパー関数: IDがAuctionHouseId（数値）かどうかをチェック
+    -- 1. menu_definitions に基づくアクション処理
+    if selected.type then
+        if selected.type == menu_definitions.types.SUBMENU then
+            local submenu_def = menu_definitions.get_menu_by_id(selected.submenu_id)
+            if submenu_def then
+                param.set_current_menu(menu_manager.create_submenu(submenu_def))
+                ui.show_menu_list(param.get_current_menu())
+            end
+            return
+        elseif selected.type == menu_definitions.types.FUNCTION then
+            if selected.func_name == 'Handle_Synthesis_Storage' then
+                Handle_Synthesis_Storage()
+            elseif selected.func_name == 'Handle_Guild_List_Selection' then
+                handle_guild_list_selection()
+            elseif selected.func_name == 'Handle_Item_List_Recipes' then
+                Handle_Item_List_Recipes()
+            elseif selected.func_name == 'Handle_Synthesis_Menu' then
+                Handle_Synthesis_Menu()
+            end
+            return
+        elseif selected.type == menu_definitions.types.FETCH then
+            Handle_Generic_Fetch(selected.id)
+            return
+        end
+    end
+
+    -- 2. 動的なIDパターンに基づく処理
     local function is_auction_house_id(id)
         return type(id) == 'number'
     end
 
-    -- 新しい合成メニュー処理の分岐
-    if selected.id == 'guild_list' then
-        handle_guild_list_selection()
-        return
-    elseif string.find(tostring(selected.id), 'GUILD_SELECTED_') then
+    if string.find(tostring(selected.id), 'GUILD_SELECTED_') then
         local guild_id_str = string.match(tostring(selected.id), 'GUILD_SELECTED_(%w+)')
         if guild_id_str then
             handle_rank_list_selection(guild_id_str)
@@ -561,49 +648,9 @@ function Handle_Confirm()
             -- サブウィンドウモードに移行
             menu_manager.enter_synthesis_sub_window_mode('full')
             -- UIを再描画してサブウィンドウのカーソルを表示
-            -- ui.show_synthesis_detailsが現在のレシピデータを参照してカーソルを描画するようにする
             ui.show_synthesis_details(selected.data)
         end
         return
-    elseif selected.id == 'synthesis' then
-        local synthesis_menu_data = menu_manager.get_synthesis_menu_data()
-        param.set_current_menu(menu_manager.create_submenu(synthesis_menu_data))
-        ui.show_menu_list(param.get_current_menu())
-    elseif selected.id == 'synthesis_storage' then
-        local player = windower.ffxi.get_player()
-        if not player or not player.id then
-            print('エラー: キャラクターIDが取得できません。')
-            return
-        end
-        local chara_id = player.id
-        param.set_chara_id(chara_id) -- chara_idをparamに保存
-
-        http_handler.fetch_synergy_inventory(chara_id, function(success, data, error_message)
-            if success and data then
-                param.set_synergy_inventory_cache(data) -- データをキャッシュ
-
-                -- メインのシナジーカテゴリメニューを生成
-                local generated_menu = synergy_category_generator.generate_menu_data(data, 'main')
-
-                if #generated_menu.items == 0 and generated_menu.empty_message then
-                    local empty_menu_data = {
-                        title = generated_menu.title,
-                        items = {{ id = 'empty_message', label = generated_menu.empty_message, description = ""}},
-                        cursor = 1,
-                        scroll_pos = 1,
-                        page_size = 1
-                    }
-                    param.set_current_menu(menu_manager.create_submenu(empty_menu_data))
-                    ui.show_menu_list(param.get_current_menu())
-                    print(generated_menu.empty_message)
-                else
-                    param.set_current_menu(menu_manager.create_submenu(generated_menu))
-                    ui.show_menu_list(param.get_current_menu())
-                end
-            else
-                print('Failed to load synergy inventory data: ' .. (error_message or 'Unknown error'))
-            end
-        end)
     elseif string.find(tostring(selected.id), '_MENU') or is_auction_house_id(selected.id) or string.find(tostring(selected.id), 'ITEM_SELECTED_') then
         local inventory_cache = param.get_synergy_inventory_cache()
         if not inventory_cache then
@@ -678,15 +725,15 @@ function Handle_Confirm()
                 ui.show_menu_list(param.get_current_menu())
             end
         end
+    elseif selected.id == 'synthesis' then
+        Handle_Synthesis_Menu()
+    elseif selected.id == 'synthesis_storage' then
+        Handle_Synthesis_Storage()
+    elseif selected.id == 'guild_list' then
+        handle_guild_list_selection()
     else
-        http_handler.fetch_menu_data(selected.id, function(success, data)
-            if success then
-                param.set_current_menu(menu_manager.create_submenu(data))
-                ui.show_menu_list(param.get_current_menu())
-            else
-                print('Failed to load menu data')
-            end
-        end)
+        -- 定義にないものはデフォルトのAPIフェッチを試みる
+        Handle_Generic_Fetch(selected.id)
     end
 end
 

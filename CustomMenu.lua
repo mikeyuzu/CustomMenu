@@ -99,6 +99,52 @@ local function Handle_Synthesis_Storage()
     end)
 end
 
+-- 図鑑メニュー表示
+local function Handle_Collection_Menu()
+    local player = windower.ffxi.get_player()
+    if not player or not player.id then
+        print('エラー: キャラクターIDが取得できません。')
+        return
+    end
+    local chara_id = player.id
+
+    http_handler.fetch_collection_list(chara_id, function(success, data, error_message)
+        if success and data then
+            -- C# Enum 順: Mission, Quest, Item, Monster, Magic, WeaponSkill
+            local labels = {
+                messages.collection_menu.items.mission,
+                messages.collection_menu.items.quest,
+                messages.collection_menu.items.item,
+                messages.collection_menu.items.monster,
+                messages.collection_menu.items.magic,
+                messages.collection_menu.items.ws
+            }
+            
+            local menu_items = {}
+            for i, val in ipairs(data) do
+                local percentage = tonumber(val) / 100
+                local label_base = labels[i] or "不明な項目"
+                local full_label = string.format("%s %0.2f%%", label_base, percentage)
+                
+                table.insert(menu_items, {
+                    id = 'collection_item_' .. i,
+                    label = full_label,
+                    description = ""
+                })
+            end
+
+            local collection_menu_data = {
+                title = messages.collection_menu.title,
+                items = menu_items
+            }
+            param.set_current_menu(menu_manager.create_submenu(collection_menu_data))
+            ui.show_menu_list(param.get_current_menu())
+        else
+            print('Failed to load collection list: ' .. (error_message or 'Unknown error'))
+        end
+    end)
+end
+
 -- 階層を辿ってレシピリストを取得・表示する (アイテム別)
 local function Fetch_And_Display_Item_Recipes(ah_id, min_lvl, max_lvl, title)
     local chara_id = param.get_chara_id() or windower.ffxi.get_player().id
@@ -682,6 +728,8 @@ function Handle_Confirm()
                 Handle_Item_List_Recipes()
             elseif selected.func_name == 'Handle_Synthesis_Menu' then
                 Handle_Synthesis_Menu()
+            elseif selected.func_name == 'Handle_Collection_Menu' then
+                Handle_Collection_Menu()
             end
             return
         elseif selected.type == menu_definitions.types.FETCH then

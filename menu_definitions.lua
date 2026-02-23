@@ -13,7 +13,7 @@ menu_definitions.types = {
 menu_definitions.main_menu = {
     title = messages.main_menu.title,
     items = {
-        { id = 'collection', label = messages.main_menu.items.collection, type = menu_definitions.types.FETCH },
+        { id = 'collection', label = messages.main_menu.items.collection, type = menu_definitions.types.FUNCTION, func_name = 'Handle_Collection_Menu' },
         { id = 'synthesis', label = messages.main_menu.items.synthesis, type = menu_definitions.types.SUBMENU, submenu_id = 'synthesis_menu' },
         { id = 'eminence', label = messages.main_menu.items.eminence, type = menu_definitions.types.FETCH },
         { id = 'quest_items', label = messages.main_menu.items.quest_items, type = menu_definitions.types.FETCH },

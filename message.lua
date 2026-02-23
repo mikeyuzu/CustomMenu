@@ -16,6 +16,18 @@ local messages = {
         }
     },
 
+    collection_menu = {
+        title = '図鑑進行度',
+        items = {
+            mission = 'ミッション図鑑',
+            quest = 'クエスト図鑑',
+            item = 'アイテム図鑑',
+            monster = 'モンスター図鑑',
+            magic = '魔法図鑑',
+            ws = 'WS図鑑',
+        }
+    },
+
     synthesis_menu = {
         title = '合成',
         items = {

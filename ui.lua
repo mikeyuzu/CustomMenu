@@ -1,6 +1,7 @@
 local texts = require('texts')
 local messages = require('message')
 local param = require('param')
+local mission_definitions = require('mission_definitions')
 local ui = {}
 
 local dialog_width = 300
@@ -1142,11 +1143,11 @@ function ui.show_mission_details(mission_name, status)
         show_guidance = false
     elseif status == 0 then
         status_label = messages.mission_status.not_started
-        description = messages.mission_guidance[mission_name] or "ガイダンスが設定されていません。"
+        description = mission_definitions.mission_guidance[mission_name] or "ガイダンスが設定されていません。"
         show_guidance = true
     else
         status_label = messages.mission_status.in_progress
-        description = messages.mission_guidance[mission_name] or "進行中のためガイダンスはありません。"
+        description = mission_definitions.mission_guidance[mission_name] or "進行中のためガイダンスはありません。"
         show_guidance = true
     end
 

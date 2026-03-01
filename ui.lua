@@ -40,6 +40,13 @@ local settings = {
         flags = { bold = false, draggable = false },
         width = 250, -- 固定幅
     },
+    mission_detail_panel = { -- ミッション詳細パネル
+        pos = { x = 500, y = 100 }, -- メインメニューの右側に配置
+        text = { size = 12, font = 'MS Gothic', stroke = { width = 2, alpha = 255, red = 0, green = 0, blue = 0 } },
+        bg = { alpha = 200, red = 20, green = 20, blue = 60 }, -- 青系の色
+        flags = { bold = false, draggable = false },
+        width = 400, -- 固定幅
+    },
 }
 
 -- アイテム名と数量の間のスペース
@@ -61,6 +68,9 @@ local synthesis_result_panel_background = nil
 
 local synthesis_ingredient_panel_texts = {}
 local synthesis_ingredient_panel_background = nil
+
+local mission_detail_panel_texts = {}
+local mission_detail_panel_background = nil
 
 local cursor_highlight_background_sub = nil -- サブウィンドウのカーソルハイライト用
 
@@ -101,6 +111,7 @@ function ui.cleanup()
         cursor_highlight_background_sub = nil
     end
     ui.hide_synthesis_details() -- サブウィンドウもクリーンアップ時に非表示にする
+    ui.hide_mission_details()    -- ミッションサブウィンドウも非表示
 end
 
 -- インジケーター表示
@@ -1113,6 +1124,55 @@ function ui.create_error_dialog(message_text)
         bg = { alpha = 0 }
     })
     error_dialog_button_text:show()
+end
+
+-- ミッション詳細表示
+function ui.show_mission_details(mission_name, status)
+    if not mission_name then
+        ui.hide_mission_details()
+        return
+    end
+
+    local status_label = ""
+    local description = ""
+    local show_guidance = false
+    
+    if status == -1 then
+        status_label = messages.mission_status.completed
+        show_guidance = false
+    elseif status == 0 then
+        status_label = messages.mission_status.not_started
+        description = messages.mission_guidance[mission_name] or "ガイダンスが設定されていません。"
+        show_guidance = true
+    else
+        status_label = messages.mission_status.in_progress
+        description = messages.mission_guidance[mission_name] or "進行中のためガイダンスはありません。"
+        show_guidance = true
+    end
+
+    local lines = {
+        " 状態: " .. status_label,
+    }
+
+    if show_guidance then
+        table.insert(lines, "")
+        table.insert(lines, "--- ガイダンス ---")
+        if description ~= "" then
+            local desc_lines = description:split('\n')
+            for _, line in ipairs(desc_lines) do
+                table.insert(lines, " " .. line)
+            end
+        else
+            table.insert(lines, " (特になし)")
+        end
+    end
+
+    mission_detail_panel_background = _update_panel(settings.mission_detail_panel, mission_detail_panel_texts, mission_detail_panel_background, lines, 'left')
+end
+
+-- ミッション詳細非表示
+function ui.hide_mission_details()
+    mission_detail_panel_background = _update_panel(settings.mission_detail_panel, mission_detail_panel_texts, mission_detail_panel_background, nil)
 end
 
 return ui

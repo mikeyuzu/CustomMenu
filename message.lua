@@ -28,6 +28,19 @@ local messages = {
         }
     },
 
+    mission_status = {
+        completed = 'クリア済み',
+        in_progress = '進行中',
+        not_started = '未受託',
+        unknown = '？？？',
+    },
+
+    -- ミッションごとのガイダンスメッセージ
+    -- 必要に応じて各ミッション名をキーにしてメッセージを記述する
+    mission_guidance = {
+        -- 例: ['オークの斥候を倒せ'] = 'ガードに話しかけてミッションを受けよう。',
+    },
+
     synthesis_menu = {
         title = '合成',
         items = {

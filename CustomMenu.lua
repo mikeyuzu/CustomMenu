@@ -53,6 +53,139 @@ local http_handler = require('http_handler')
 local param = require('param')
 local menu_definitions = require('menu_definitions')
 local synergy_category_generator = require('synergy_category_generator')
+local mission_definitions = require('mission_definitions')
+
+-- ミッションカテゴリ内の項目を表示
+local function Handle_Mission_Category_Selection(category_label, missions, mission_results)
+    local menu_items = {}
+    local completed_count = 0
+    local total_count = 0
+
+    -- 階層構造（章立て）がある場合
+    if type(missions[1]) == 'table' then
+        for i, chapter in ipairs(missions) do
+            local chapter_completed = 0
+            local chapter_total = #chapter.missions
+            
+            for _, m_name in ipairs(chapter.missions) do
+                total_count = total_count + 1
+                local status = mission_results[total_count] or 0
+                if status == -1 then
+                    completed_count = completed_count + 1
+                    chapter_completed = chapter_completed + 1
+                end
+            end
+            
+            local percentage = (chapter_completed / chapter_total) * 100
+            table.insert(menu_items, {
+                id = 'MISSION_CHAPTER_' .. i,
+                label = string.format("%s %d%%", chapter.title, percentage),
+                missions = chapter.missions,
+                mission_offset = total_count - chapter_total,
+                mission_results = mission_results
+            })
+        end
+    else
+        -- 通常のミッションリスト
+        for i, m_name in ipairs(missions) do
+            total_count = total_count + 1
+            local status = mission_results[i] or 0
+            local label = m_name
+            
+            -- 未クリア（未受託：0 または 進行中：1以上）は？？？
+            if status >= 0 then
+                label = messages.mission_status.unknown
+            end
+            
+            if status == -1 then
+                completed_count = completed_count + 1
+            end
+
+            table.insert(menu_items, {
+                id = 'MISSION_ITEM_' .. i,
+                label = label,
+                mission_name = m_name,
+                status = status
+            })
+        end
+    end
+
+    local percentage = total_count > 0 and (completed_count / total_count) * 100 or 0
+    local menu_data = {
+        title = string.format("%s %d%%", category_label, percentage),
+        items = menu_items
+    }
+    param.set_current_menu(menu_manager.create_submenu(menu_data))
+    ui.show_menu_list(param.get_current_menu())
+end
+
+-- ミッション図鑑表示
+local function Handle_Mission_Encyclopedia()
+    local player = windower.ffxi.get_player()
+    if not player or not player.id then
+        print('エラー: キャラクターIDが取得できません。')
+        return
+    end
+    local chara_id = player.id
+
+    http_handler.fetch_mission_list(chara_id, function(success, data, error_message)
+        if success and data then
+            -- デバッグ用: キーの一覧をコンソールに出力して、PascalCaseかcamelCaseかを確認
+            for k, v in pairs(data) do
+                -- print('API Key found: ' .. tostring(k))
+            end
+
+            local menu_items = {}
+            for _, cat in ipairs(mission_definitions.categories) do
+                local m_list = mission_definitions.missions[cat.key]
+                -- 大文字・小文字両方のキーを試行し、取得できたデータを保持
+                local m_results = data[cat.key] or data[cat.key:lower()] or {}
+                
+                local completed_count = 0
+                local total_count = 0
+                
+                -- クリア率計算
+                if type(m_list[1]) == 'table' then
+                    -- 章立てがある場合
+                    for _, chapter in ipairs(m_list) do
+                        for _, _ in ipairs(chapter.missions) do
+                            total_count = total_count + 1
+                            if m_results[total_count] == -1 then
+                                completed_count = completed_count + 1
+                            end
+                        end
+                    end
+                else
+                    -- 通常リスト
+                    total_count = #m_list
+                    for i = 1, total_count do
+                        if m_results[i] == -1 then
+                            completed_count = completed_count + 1
+                        end
+                    end
+                end
+
+                local percentage = total_count > 0 and (completed_count / total_count) * 100 or 0
+                table.insert(menu_items, {
+                    id = 'MISSION_CAT_' .. cat.id,
+                    label = string.format("%s %d%%", cat.label, percentage),
+                    category_key = cat.key,
+                    category_label = cat.label,
+                    mission_results = m_results
+                })
+            end
+
+            local menu_data = {
+                title = messages.collection_menu.items.mission,
+                items = menu_items
+            }
+            param.set_current_menu(menu_manager.create_submenu(menu_data))
+            ui.show_menu_list(param.get_current_menu())
+        else
+            print('Failed to load mission list: ' .. (error_message or 'Unknown error'))
+        end
+    end)
+end
 
 -- 合成メニュー表示
 local function Handle_Synthesis_Menu()
@@ -290,6 +423,7 @@ function Close_Menu()
     param.set_current_menu(nil)
     ui.hide_menu_list()
     ui.hide_synthesis_details() -- サブウィンドウを非表示にする
+    ui.hide_mission_details()    -- ミッションサブウィンドウも非表示
     ui.show_indicator() -- インジケーターを再表示
     menu_manager.exit_synthesis_sub_window_mode() -- サブウィンドウモードを終了
     if param.get_input_blocked() then
@@ -743,6 +877,59 @@ function Handle_Confirm()
         return type(id) == 'number'
     end
 
+    -- 図鑑メニュー（ミッション図鑑）のハンドリング
+    if selected.id == 'collection_item_1' then
+        Handle_Mission_Encyclopedia()
+        return
+    end
+
+    -- ミッション図鑑：カテゴリ（国・拡張）選択
+    if tostring(selected.id):find('MISSION_CAT_') then
+        local cat_key = selected.category_key
+        local missions = mission_definitions.missions[cat_key]
+        Handle_Mission_Category_Selection(selected.category_label, missions, selected.mission_results)
+        Refresh_Sub_Window() -- 最初の項目の詳細を表示
+        return
+    end
+
+    -- ミッション図鑑：章（プロマシア等）選択
+    if tostring(selected.id):find('MISSION_CHAPTER_') then
+        local menu_items = {}
+        local missions = selected.missions
+        local offset = selected.mission_offset
+        local mission_results = selected.mission_results or {}
+        
+        for i, m_name in ipairs(missions) do
+            local status = mission_results[offset + i] or 0
+            local label = m_name
+            if status >= 0 then
+                label = messages.mission_status.unknown
+            end
+            
+            table.insert(menu_items, {
+                id = 'MISSION_ITEM_' .. (offset + i),
+                label = label,
+                mission_name = m_name,
+                status = status
+            })
+        end
+
+        local menu_data = {
+            title = selected.label,
+            items = menu_items
+        }
+        param.set_current_menu(menu_manager.create_submenu(menu_data))
+        ui.show_menu_list(param.get_current_menu())
+        Refresh_Sub_Window() -- 最初の項目の詳細を表示
+        return
+    end
+
+    -- ミッション図鑑：個別ミッション（詳細表示）
+    if tostring(selected.id):find('MISSION_ITEM_') then
+        ui.show_mission_details(selected.mission_name, selected.status)
+        return
+    end
+
     -- アイテム別レシピのレベル帯選択
     if string.find(tostring(selected.id), 'ITEM_RECIPE_LEVEL_') then
         local parts = selected.id:split('_')
@@ -904,8 +1091,10 @@ function Handle_Cancel()
         Close_Dialog()
     elseif menu_manager.can_go_back() then
         param.set_current_menu(menu_manager.go_back())
-        ui.hide_synthesis_details() -- 先に非表示にする
+        ui.hide_synthesis_details()
+        ui.hide_mission_details()
         ui.show_menu_list(param.get_current_menu())
+        Refresh_Sub_Window() -- 戻った後のアイテムに合わせてサブウィンドウを更新
     else
         Close_Menu()
     end
@@ -1013,6 +1202,24 @@ function Refresh_Menu_After_Inventory_Update(updated_cache)
         -- スタックを積まないように現在メニューを更新
         param.set_current_menu(menu_manager.create_current_menu_from_data(generated_menu))
         ui.show_menu_list(param.get_current_menu())
+    end
+end
+
+-- サブウィンドウを更新するヘルパー関数
+function Refresh_Sub_Window()
+    local selected = menu_manager.get_selected_item()
+    if not selected then return end
+
+    ui.hide_synthesis_details()
+    ui.hide_mission_details()
+
+    local id_str = tostring(selected.id)
+    if id_str:find('RECIPE_ITEM_') then
+        if selected.data then
+            ui.show_synthesis_details(selected.data)
+        end
+    elseif id_str:find('MISSION_ITEM_') then
+        ui.show_mission_details(selected.mission_name, selected.status)
     end
 end
 
@@ -1288,48 +1495,20 @@ windower.register_event('keyboard', function(dik, down, flags, blocked)
 
     if action == 'up' then
         menu_manager.move_cursor(-1)
-        ui.hide_synthesis_details() -- 先に非表示にする
         ui.update_menu_display(param.get_current_menu())
-        local current_menu = param.get_current_menu()
-        if current_menu and current_menu.items and #current_menu.items > 0 and current_menu.items[1].id and string.find(current_menu.items[1].id, 'RECIPE_ITEM_') then
-            local selected = menu_manager.get_selected_item()
-            if selected and selected.data then
-                ui.show_synthesis_details(selected.data)
-            end
-        end
+        Refresh_Sub_Window()
     elseif action == 'down' then
         menu_manager.move_cursor(1)
-        ui.hide_synthesis_details() -- 先に非表示にする
         ui.update_menu_display(param.get_current_menu())
-        local current_menu = param.get_current_menu()
-        if current_menu and current_menu.items and #current_menu.items > 0 and current_menu.items[1].id and string.find(current_menu.items[1].id, 'RECIPE_ITEM_') then
-            local selected = menu_manager.get_selected_item()
-            if selected and selected.data then
-                ui.show_synthesis_details(selected.data)
-            end
-        end
+        Refresh_Sub_Window()
     elseif action == 'left' then
         menu_manager.page_up()
-        ui.hide_synthesis_details() -- 先に非表示にする
         ui.update_menu_display(param.get_current_menu())
-        local current_menu = param.get_current_menu()
-        if current_menu and current_menu.items and #current_menu.items > 0 and current_menu.items[1].id and string.find(current_menu.items[1].id, 'RECIPE_ITEM_') then
-            local selected = menu_manager.get_selected_item()
-            if selected and selected.data then
-                ui.show_synthesis_details(selected.data)
-            end
-        end
+        Refresh_Sub_Window()
     elseif action == 'right' then
         menu_manager.page_down()
-        ui.hide_synthesis_details() -- 先に非表示にする
         ui.update_menu_display(param.get_current_menu())
-        local current_menu = param.get_current_menu()
-        if current_menu and current_menu.items and #current_menu.items > 0 and current_menu.items[1].id and string.find(current_menu.items[1].id, 'RECIPE_ITEM_') then
-            local selected = menu_manager.get_selected_item()
-            if selected and selected.data then
-                ui.show_synthesis_details(selected.data)
-            end
-        end
+        Refresh_Sub_Window()
     elseif action == 'confirm' then
         Handle_Confirm()
     elseif action == 'cancel' then

@@ -17,149 +17,123 @@ local settings = {
     },
     menu = {
         pos = { x = 200, y = 100 },
-        text = { size = 12, font = 'MS Gothic', stroke = { width = 2, alpha = 255, red = 0, green = 0, blue = 0 }, justify = 'left' }, -- デフォルトは左寄せ
+        text = { size = 12, font = 'MS Gothic', stroke = { width = 2, alpha = 255, red = 0, green = 0, blue = 0 }, justify = 'left' },
         bg = { alpha = 200, red = 20, green = 20, blue = 40 },
         flags = { bold = false, draggable = false }
     },
     description_panel = {
-        pos = { x = 480, y = 100 }, -- メニューの右側に配置
+        pos = { x = 480, y = 100 },
         text = { size = 12, font = 'MS Gothic', stroke = { width = 2, alpha = 255, red = 0, green = 0, blue = 0 } },
         bg = { alpha = 200, red = 20, green = 20, blue = 40 },
         flags = { bold = false, draggable = false }
     },
-    synthesis_result_panel = { -- サブウィンドウ1 (完成品情報)
-        pos = { x = 500, y = 100 }, -- メインメニューの右側に配置
+    synthesis_result_panel = {
+        pos = { x = 500, y = 100 },
         text = { size = 12, font = 'MS Gothic', stroke = { width = 2, alpha = 255, red = 0, green = 0, blue = 0 } },
-        bg = { alpha = 200, red = 20, green = 40, blue = 20 }, -- 緑系の色
+        bg = { alpha = 200, red = 20, green = 40, blue = 20 },
         flags = { bold = false, draggable = false },
-        width = 360, -- 固定幅
+        width = 360,
     },
-    synthesis_ingredient_panel = { -- サブウィンドウ2 (素材情報)
-        pos = { x = 910, y = 100 }, -- サブウィンドウ1の右側に配置 (400 + 250 + 10 = 660)
+    synthesis_ingredient_panel = {
+        pos = { x = 910, y = 100 },
         text = { size = 12, font = 'MS Gothic', stroke = { width = 2, alpha = 255, red = 0, green = 0, blue = 0 } },
-        bg = { alpha = 200, red = 40, green = 20, blue = 20 }, -- 赤系の色
+        bg = { alpha = 200, red = 40, green = 20, blue = 20 },
         flags = { bold = false, draggable = false },
-        width = 250, -- 固定幅
+        width = 250,
     },
-    mission_detail_panel = { -- ミッション詳細パネル
-        pos = { x = 500, y = 100 }, -- メインメニューの右側に配置
+    mission_detail_panel = {
+        pos = { x = 500, y = 100 },
         text = { size = 12, font = 'MS Gothic', stroke = { width = 2, alpha = 255, red = 0, green = 0, blue = 0 } },
-        bg = { alpha = 200, red = 20, green = 20, blue = 60 }, -- 青系の色
+        bg = { alpha = 200, red = 20, green = 20, blue = 60 },
         flags = { bold = false, draggable = false },
-        width = 400, -- 固定幅
+        width = 400,
     },
 }
-
--- アイテム名と数量の間のスペース
-local LABEL_QUANTITY_SPACING = 3
--- 数量表示カラムの幅（例: "999" + 前後のスペースを考慮）
-local QUANTITY_COLUMN_WIDTH = 5 
 
 -- テキストオブジェクト
 local indicator_text = nil
 local menu_texts = {}
-local menu_quantities = {} -- 数量表示用のテキストオブジェクト
+local menu_quantities = {}
 local menu_background = nil
 local cursor_highlight_background = nil
 local description_text = nil
 
--- 合成レシピ詳細表示用
+-- 詳細パネル用
 local synthesis_result_panel_texts = {}
 local synthesis_result_panel_background = nil
-
 local synthesis_ingredient_panel_texts = {}
 local synthesis_ingredient_panel_background = nil
-
 local mission_detail_panel_texts = {}
 local mission_detail_panel_background = nil
+local cursor_highlight_background_sub = nil
 
-local cursor_highlight_background_sub = nil -- サブウィンドウのカーソルハイライト用
+-- 文字列の表示幅（半角換算）を計算するヘルパー関数
+local function _get_display_width(text)
+    if not text then return 0 end
+    -- カラーコード (\cs(r,g,b), \cr) と特殊アイコン (${icon|...}) を完全に除去
+    -- \cs... は \cs%b() で括弧のバランスをとって除去
+    local clean = text:gsub('\\cs%b()', ''):gsub('\\cr', ''):gsub('%$%b{}', '')
+    
+    local width = 0
+    local i = 1
+    while i <= #clean do
+        local byte = clean:byte(i)
+        if not byte then break end
+        if byte > 127 then
+            width = width + 2
+            if (byte >= 0x81 and byte <= 0x9F) or (byte >= 0xE0 and byte <= 0xFC) then
+                i = i + 2
+            else
+                i = i + 1
+            end
+        else
+            width = width + 1
+            i = i + 1
+        end
+    end
+    return width
+end
 
 -- 初期化
 function ui.initialize()
-    -- インジケーター(カスタムメニュー)の作成
     indicator_text = texts.new(messages.menu_title, settings.indicator)
     indicator_text:show()
 end
 
 -- クリーンアップ
 function ui.cleanup()
-    if indicator_text then
-        indicator_text:destroy()
-    end
-    for _, text_obj in ipairs(menu_texts) do
-        text_obj:destroy()
-    end
+    if indicator_text then indicator_text:destroy() end
+    for _, t in ipairs(menu_texts) do t:destroy() end
     menu_texts = {}
-    for _, text_obj in ipairs(menu_quantities) do
-        text_obj:destroy()
-    end
+    for _, t in ipairs(menu_quantities) do t:destroy() end
     menu_quantities = {}
-    if menu_background then
-        menu_background:destroy()
-        menu_background = nil
-    end
-    if cursor_highlight_background then
-        cursor_highlight_background:destroy()
-        cursor_highlight_background = nil
-    end
-    if description_text then
-        description_text:destroy()
-        description_text = nil
-    end
-    if cursor_highlight_background_sub then
-        cursor_highlight_background_sub:destroy()
-        cursor_highlight_background_sub = nil
-    end
-    ui.hide_synthesis_details() -- サブウィンドウもクリーンアップ時に非表示にする
-    ui.hide_mission_details()    -- ミッションサブウィンドウも非表示
+    if menu_background then menu_background:destroy(); menu_background = nil end
+    if cursor_highlight_background then cursor_highlight_background:destroy(); cursor_highlight_background = nil end
+    if description_text then description_text:destroy(); description_text = nil end
+    if cursor_highlight_background_sub then cursor_highlight_background_sub:destroy(); cursor_highlight_background_sub = nil end
+    ui.hide_synthesis_details()
+    ui.hide_mission_details()
 end
 
--- インジケーター表示
-function ui.show_indicator()
-    if indicator_text then
-        indicator_text:show()
-    end
-end
+function ui.show_indicator() if indicator_text then indicator_text:show() end end
+function ui.hide_indicator() if indicator_text then indicator_text:hide() end end
 
--- インジケーター非表示
-function ui.hide_indicator()
-    if indicator_text then
-        indicator_text:hide()
-    end
-end
-
--- 通知表示更新
 function ui.update_notification(has_notification)
     if indicator_text then
-        if has_notification then
-            indicator_text:text(messages.notification_with_icon)
-        else
-            indicator_text:text(messages.notification_text)
-        end
+        indicator_text:text(has_notification and messages.notification_with_icon or messages.notification_text)
     end
 end
 
--- メニューリスト表示
 function ui.show_menu_list(menu_data)
     ui.update_menu_display(menu_data)
     if description_text then description_text:show() end
 end
 
--- メニューリスト非表示
 function ui.hide_menu_list()
-    for _, text_obj in ipairs(menu_texts) do
-        text_obj:hide()
-    end
-    for _, text_obj in ipairs(menu_quantities) do
-        text_obj:hide()
-    end
-    if menu_background then
-        menu_background:hide()
-    end
-    if cursor_highlight_background then
-        cursor_highlight_background:hide()
-    end
+    for _, t in ipairs(menu_texts) do t:hide() end
+    for _, t in ipairs(menu_quantities) do t:hide() end
+    if menu_background then menu_background:hide() end
+    if cursor_highlight_background then cursor_highlight_background:hide() end
     if description_text then description_text:hide() end
 end
 
@@ -167,1060 +141,371 @@ end
 function ui.update_menu_display(menu_data)
     if not menu_data then return end
 
-    -- 1. 既存のUIオブジェクトをすべて破棄
-    for _, text_obj in ipairs(menu_texts) do
-        text_obj:destroy()
-    end
+    -- 1. 既存の破棄
+    for _, t in ipairs(menu_texts) do t:destroy() end
     menu_texts = {}
-    for _, text_obj in ipairs(menu_quantities) do
-        text_obj:destroy()
-    end
+    for _, t in ipairs(menu_quantities) do t:destroy() end
     menu_quantities = {}
-    if menu_background then
-        menu_background:destroy()
-        menu_background = nil
-    end
-    if cursor_highlight_background then
-        cursor_highlight_background:destroy()
-        cursor_highlight_background = nil
-    end
-    if description_text then -- Clear existing description
-        description_text:destroy()
-        description_text = nil
-    end
+    if menu_background then menu_background:destroy(); menu_background = nil end
+    if cursor_highlight_background then cursor_highlight_background:destroy(); cursor_highlight_background = nil end
+    if description_text then description_text:destroy(); description_text = nil end
 
-    -- 2. メニューの寸法と内容を計算
+    -- 2. 寸法計算
     local lines_data = {}
-    local max_label_len = 0 -- アイテム名の最大長
-    local max_quantity_len = 0 -- 数量の最大長
-
+    local max_label_w = 0
+    local max_qty_w = 0
     local line_height = settings.menu.text.size + 4
-
-    table.insert(lines_data, {text=menu_data.title, is_item=false, index=0})
-    table.insert(lines_data, {text=string.rep('-', 30), is_item=false, index=0})
 
     local start_idx = menu_data.scroll_pos
     local end_idx = math.min(start_idx + menu_data.page_size - 1, #menu_data.items)
 
     for i = start_idx, end_idx do
         local item = menu_data.items[i]
-            local prefix = (i == menu_data.cursor) and '> ' or '  '
-            local recipe_name
-            if item.isOpen == 0 then
-                if item.allMaterialsPossessed then
-                    recipe_name = '\\cs(255,255,0)？？？\\cr' -- 黄色
-                else
-                    recipe_name = '？？？'
-                end
-            else
-                recipe_name = item.label
-            end
-
-            local label_suffix = ""
-            local color_prefix = ""
-            local color_suffix = ""
-            if item.status == 1 then
-                label_suffix = " ${icon|!}"
-                color_prefix = "\\cs(255,255,0)" -- 黄色
-                color_suffix = "\\cr"
-            end
-            local label_text = prefix .. color_prefix .. recipe_name .. label_suffix .. color_suffix
-            local quantity_text = tostring(item.quantity or '')
-        if string.len(label_text) > max_label_len then
-            max_label_len = string.len(label_text)
-        end
-        if string.len(quantity_text) > max_quantity_len then
-            max_quantity_len = string.len(quantity_text)
-        end
+        local prefix = (i == menu_data.cursor) and '> ' or '  '
+        local recipe_name = (item.isOpen == 0) and (item.allMaterialsPossessed and '\\cs(255,255,0)？？？\\cr' or '？？？') or item.label
+        local status_icon = (item.status == 1) and ' ${icon|!}' or ''
         
-        table.insert(lines_data, {text = label_text, quantity = quantity_text, is_item=true, index=i})
-    end
-    
-    -- 数量カラムの表示を考慮したメニュー全体の最大幅
-    local menu_content_width = max_label_len + LABEL_QUANTITY_SPACING + QUANTITY_COLUMN_WIDTH
-    local max_len = math.max(string.len(menu_data.title), menu_content_width, 30) -- タイトルや区切り線の長さも考慮
-    max_len = max_len + 4 -- パディング
+        -- ステータス1（ビックリマーク）なら行全体を黄色にする
+        local color_pfx = (item.status == 1) and '\\cs(255,255,0)' or ''
+        local color_sfx = (item.status == 1) and '\\cr' or ''
+        
+        local label_text = prefix .. color_pfx .. recipe_name .. status_icon .. color_sfx
+        local quantity_text = tostring(item.quantity or '')
 
+        local lw = _get_display_width(label_text)
+        local qw = _get_display_width(quantity_text)
+        if lw > max_label_w then max_label_w = lw end
+        if qw > max_qty_w then max_qty_w = qw end
+        table.insert(lines_data, {text=label_text, quantity=quantity_text, is_item=true, index=i})
+    end
+
+    local menu_w = max_label_w + (max_qty_w > 0 and (max_qty_w + 1) or 0)
+    local max_len = math.max(_get_display_width(menu_data.title), menu_w, 8)
+    max_len = max_len + 1 -- 最小限のパディング
+
+    -- ヘッダー等の追加
+    table.insert(lines_data, 1, {text=menu_data.title, is_item=false})
+    table.insert(lines_data, 2, {text=string.rep('-', max_len - 1), is_item=false})
     if #menu_data.items > menu_data.page_size then
-        table.insert(lines_data, {text=string.rep('-', max_len - 4), is_item=false, index=0}) -- max_lenからパディングを引く
-        table.insert(lines_data, {text=string.format('[%d/%d]', menu_data.cursor, #menu_data.items), is_item=false, index=0})
+        table.insert(lines_data, {text=string.rep('-', max_len), is_item=false})
+        table.insert(lines_data, {text=string.format('[%d/%d]', menu_data.cursor, #menu_data.items), is_item=false})
     end
 
-    -- 3. メインの背景を描画
-    local line_of_spaces = string.rep(' ', max_len)
-    local block_of_spaces = ''
-    for i = 1, #lines_data do
-        block_of_spaces = block_of_spaces .. line_of_spaces .. '\n'
-    end
-
-    local bg_options = {
-        pos = { x = settings.menu.pos.x - 10, y = settings.menu.pos.y },
-        bg = settings.menu.bg,
-        text = settings.menu.text,
-        flags = settings.menu.flags,
-    }
-    menu_background = texts.new(block_of_spaces, bg_options)
+    -- 3. 背景描画
+    local space_line = string.rep(' ', max_len)
+    local bg_text = ""
+    for _ = 1, #lines_data do bg_text = bg_text .. space_line .. '\n' end
+    menu_background = texts.new(bg_text, { pos={x=settings.menu.pos.x-5, y=settings.menu.pos.y}, bg=settings.menu.bg, text=settings.menu.text, flags=settings.menu.flags })
     menu_background:show()
 
-    -- 4. カーソルのハイライト背景を描画する
-    local current_y_for_highlight = settings.menu.pos.y
-    local line_index = 0
+    -- 4. カーソル描画
+    local cy = settings.menu.pos.y
     for _, line in ipairs(lines_data) do
-        line_index = line_index + 1
         if line.is_item and line.index == menu_data.cursor then
-            local highlight_options = {
-                pos = { x = settings.menu.pos.x - 10, y = current_y_for_highlight },
-                bg = { alpha = 255, red = 70, green = 70, blue = 100 },
-                text = settings.menu.text,
-                flags = settings.menu.flags,
-            }
-            cursor_highlight_background = texts.new(line_of_spaces, highlight_options)
+            cursor_highlight_background = texts.new(space_line, { pos={x=settings.menu.pos.x-5, y=cy}, bg={alpha=255, red=70, green=70, blue=100}, text=settings.menu.text, flags=settings.menu.flags })
             cursor_highlight_background:show()
             break
         end
-        current_y_for_highlight = current_y_for_highlight + line_height
+        cy = cy + line_height
     end
 
-    -- 5. 上にテキストを描く
-    local current_y_for_text = settings.menu.pos.y
+    -- 5. テキスト描画
+    local ty = settings.menu.pos.y
     for _, line in ipairs(lines_data) do
-        local text_options = {
-            pos = { x = settings.menu.pos.x, y = current_y_for_text },
-            text = settings.menu.text,
-            bg = { alpha = 0, red = 0, green = 0, blue = 0 },
-            flags = settings.menu.flags,
-        }
+        local t_obj = texts.new(line.text, { pos={x=settings.menu.pos.x, y=ty}, text=settings.menu.text, bg={alpha=0}, flags=settings.menu.flags })
+        table.insert(menu_texts, t_obj); t_obj:show()
 
-        local text_obj = texts.new(line.text, text_options)
-        table.insert(menu_texts, text_obj)
-        text_obj:show()
-
-        -- 数量表示 (アイテム行のみ)
         if line.is_item and line.quantity ~= '' then
-            local quantity_x_pos = settings.menu.pos.x + max_len * (settings.menu.text.size * 0.6) - QUANTITY_COLUMN_WIDTH * (settings.menu.text.size * 0.6) - 10 -- 微調整
-            local quantity_options = {
-                pos = { x = quantity_x_pos, y = current_y_for_text },
-                text = { size = settings.menu.text.size, font = settings.menu.text.font, stroke = settings.menu.text.stroke, justify = 'right' },
-                bg = { alpha = 0, red = 0, green = 0, blue = 0 },
-                flags = settings.menu.flags,
-            }
-            local padded_quantity = string.format("%" .. QUANTITY_COLUMN_WIDTH .. "s", line.quantity) -- 右寄せのためにパディング
-            local quantity_obj = texts.new(padded_quantity, quantity_options)
-            table.insert(menu_quantities, quantity_obj)
-            quantity_obj:show()
+            local qx = settings.menu.pos.x + (max_len - 1) * (settings.menu.text.size * 0.6)
+            local q_obj = texts.new(line.quantity, { pos={x=qx, y=ty}, text={size=settings.menu.text.size, font=settings.menu.text.font, justify='right'}, bg={alpha=0}, flags=settings.menu.flags })
+            table.insert(menu_quantities, q_obj); q_obj:show()
         end
-
-        current_y_for_text = current_y_for_text + line_height
+        ty = ty + line_height
     end
 
-    -- 6. 描画説明パネル
-    local selected_item_idx = menu_data.cursor
-    local selected_item = menu_data.items[selected_item_idx]
-
-    if selected_item and selected_item.description then
-        local description_options = {
-            pos = settings.description_panel.pos,
-            bg = settings.description_panel.bg,
-            text = settings.description_panel.text,
-            flags = settings.description_panel.flags,
-        }
-        description_text = texts.new(selected_item.description, description_options)
+    -- 6. 説明パネル
+    local sel = menu_data.items[menu_data.cursor]
+    if sel and sel.description then
+        description_text = texts.new(sel.description, { pos=settings.description_panel.pos, bg=settings.description_panel.bg, text=settings.description_panel.text, flags=settings.description_panel.flags })
         description_text:show()
     end
 end
 
--- 汎用パネル更新ヘルパー関数
--- panel_settings: パネルのUI設定 (pos, text, bg, flags, widthなど)
--- panel_texts_table: パネル内のテキストオブジェクトを格納するテーブル (local変数)
--- panel_background: パネルの背景オブジェクト (local変数)
--- content_lines: 表示するテキスト行のテーブル (stringの配列)
--- justify: テキストの寄せ方 (省略可能、'left', 'center', 'right')
--- 戻り値: 新しく作成された背景オブジェクト
-local function _update_panel(panel_settings, panel_texts_table, panel_background, content_lines, justify)
-    -- 既存のUIオブジェクトをすべて破棄
-    for i = #panel_texts_table, 1, -1 do
-        panel_texts_table[i]:destroy()
-        table.remove(panel_texts_table, i)
+local function _update_panel(ps, pt, pb, lines, justify)
+    for i=#pt,1,-1 do pt[i]:destroy(); table.remove(pt, i) end
+    if pb then pb:destroy(); pb = nil end
+    if not lines or #lines == 0 then return nil end
+
+    local lh = ps.text.size + 4
+    local max_w = 0
+    for _, l in ipairs(lines) do
+        local w = _get_display_width(type(l) == 'table' and l.text or l)
+        if w > max_w then max_w = w end
     end
 
-    if panel_background then
-        panel_background:destroy()
-        panel_background = nil
+    local bg_w = ps.width or (max_w * (ps.text.size * 0.5) + 15)
+    local bg_h = #lines * lh + 10
+    local sp_c = math.floor(bg_w / (ps.text.size * 0.6))
+    local sp_b = ""
+    for _ = 1, math.ceil(bg_h/lh) do sp_b = sp_b .. string.rep(' ', sp_c) .. '\n' end
+
+    local new_pb = texts.new(sp_b, { pos=ps.pos, bg=ps.bg, text=ps.text, flags=ps.flags })
+    new_pb:show()
+
+    local cy = ps.pos.y + 5
+    for _, l in ipairs(lines) do
+        local txt = type(l) == 'table' and l.text or l
+        local to = { pos={x=ps.pos.x+10, y=cy}, text=ps.text, bg={alpha=0}, flags=ps.flags }
+        if justify == 'center' then to.pos.x = ps.pos.x + bg_w/2; to.text.justify = 'center'
+        elseif justify == 'right' then to.pos.x = ps.pos.x + bg_w - 10; to.text.justify = 'right' end
+        local t_obj = texts.new(txt, to)
+        table.insert(pt, t_obj); t_obj:show()
+        cy = cy + lh
     end
-
-    if not content_lines or #content_lines == 0 then
-        return nil -- 何も表示しない場合はnilを返す
-    end
-
-    local line_height = panel_settings.text.size + 4
-    local panel_height = #content_lines * line_height + 10 -- 上下のパディング
-
-    -- 背景の描画
-    local max_content_width = 0
-    for _, line_data in ipairs(content_lines) do
-        local line_text = (type(line_data) == 'table') and line_data.text or line_data
-        -- Luaはマルチバイト文字を1として数えるため、半角換算する
-        local len = 0
-        for i = 1, #line_text do
-            local byte = string.byte(line_text, i)
-            if byte > 127 then
-                len = len + 2 -- 全角は2文字分としてカウント
-            else
-                len = len + 1 -- 半角は1文字分
-            end
-        end
-
-        if len > max_content_width then
-            max_content_width = len
-        end
-    end
-
-    -- 固定幅を使用するか、コンテンツ幅を計算するか
-    local bg_width = panel_settings.width or (max_content_width * (panel_settings.text.size * 0.5) + 20) -- フォントサイズに応じて調整 + パディング
-    local bg_height = panel_height
-
-    local bg_options = {
-        pos = { x = panel_settings.pos.x, y = panel_settings.pos.y },
-        bg = panel_settings.bg,
-        text = panel_settings.text,
-        flags = panel_settings.flags,
-    }
-    -- 背景はtextsオブジェクトで、スペースを充填して描画
-    local space_count = math.floor(bg_width / (panel_settings.text.size * 0.6))
-    if space_count < 1 then space_count = 1 end
-    local line_count = math.ceil(bg_height / line_height)
-    if line_count < 1 then line_count = 1 end
-    local space_block = ""
-    for i = 1, line_count do
-        space_block = space_block .. string.rep(' ', space_count) .. '\n'
-    end
-
-    local new_panel_background = texts.new(space_block, bg_options)
-    new_panel_background:show()
-
-    -- テキストの描画
-    local current_y = panel_settings.pos.y + 5 -- 上パディング
-    for _, line_data in ipairs(content_lines) do
-        local line_text
-        if type(line_data) == 'table' then
-            line_text = line_data.text
-        else
-            line_text = line_data
-        end
-        -- settings.textをディープコピーする
-        local text_setting = {
-            size = panel_settings.text.size,
-            font = panel_settings.text.font,
-            stroke = {
-                width = panel_settings.text.stroke.width,
-                alpha = panel_settings.text.stroke.alpha,
-                red = panel_settings.text.stroke.red,
-                green = panel_settings.text.stroke.green,
-                blue = panel_settings.text.stroke.blue,
-            },
-            justify = panel_settings.text.justify,
-        }
-
-        local text_options = {
-            pos = { x = panel_settings.pos.x + 10, y = current_y }, -- 左パディング
-            text = text_setting,
-            bg = { alpha = 0, red = 0, green = 0, blue = 0 }, -- テキスト背景は透明
-            flags = panel_settings.flags,
-        }
-        if justify then
-            text_options.text.justify = justify
-            if justify == 'center' then
-                text_options.pos.x = panel_settings.pos.x + bg_width / 2
-            elseif justify == 'right' then
-                text_options.pos.x = panel_settings.pos.x + bg_width - 10
-            end
-        end
-
-        local text_obj = texts.new(line_text, text_options)
-        table.insert(panel_texts_table, text_obj)
-        text_obj:show()
-
-        current_y = current_y + line_height
-    end
-    
-    return new_panel_background
+    return new_pb
 end
 
--- 合成レシピ詳細表示
 function ui.show_synthesis_details(recipe)
-    if not recipe then
-        ui.hide_synthesis_details()
-        return
-    end
+    if not recipe then ui.hide_synthesis_details(); return end
+    local rl = {}
+    local nq_hq_l = {}
+    local lh = settings.synthesis_result_panel.text.size + 4
+    local cy = {y = settings.synthesis_result_panel.pos.y + 5}
 
-    -- 説明文をフォーマットして追加するヘルパー関数
-    local function add_description_lines(lines_table, description, current_y_ref, line_height)
-        description = description or messages.synthesis_menu.not_infomation
-        local lines = description:split('\n')
-
-        if #lines == 0 then
-            table.insert(lines_table, {text = "　", y = current_y_ref.y})
-            current_y_ref.y = current_y_ref.y + line_height
-            return
-        end
-
-        for i, line in ipairs(lines) do
-            local line_to_add = "　" .. line
-            table.insert(lines_table, {text = line_to_add, y = current_y_ref.y})
-            current_y_ref.y = current_y_ref.y + line_height
-        end
-    end
-
-    -- 完成品パネルの表示
-    local result_lines = {}
-    local nq_hq_items_layout = {} -- 選択可能なNQ/HQアイテムのレイアウト情報を保持
-    local current_y_nq_hq = {y = settings.synthesis_result_panel.pos.y + 5} -- Y座標参照
-    local panel_line_height = settings.synthesis_result_panel.text.size + 4
-
-    -- スキル情報の追加
-    local skill_line = ""
+    local sk = ""
     if recipe.craftRank then
-        local rank_message = ""
-        local synergy_skills = messages.synergy_skill.items
-        for id, skill in ipairs(synergy_skills) do
-            if recipe.craftRank[id] and recipe.craftRank[id] > 0 then
-                rank_message = rank_message .. string.format("%s%d ", skill.label, recipe.craftRank[id])
-            end
-        end
-        skill_line = rank_message ~= "" and rank_message or messages.synthesis_menu.other_skill
-    else
-        skill_line = messages.synthesis_menu.other_skill
-    end
-    table.insert(result_lines, {text = skill_line, y = current_y_nq_hq.y})
-    current_y_nq_hq.y = current_y_nq_hq.y + panel_line_height
-
-    -- 開放済み/未開放メッセージ
-    local status_message = ""
-    if recipe.isOpen == 0 then
-        local all_materials_possessed = true
-        if recipe.crystal and (recipe.crystal.possession or 0) < (recipe.crystal.quantity or 1) then all_materials_possessed = false end
-        if all_materials_possessed and recipe.ingredient then
-            for _, ing in ipairs(recipe.ingredient) do
-                if (ing.possession or 0) < (ing.quantity or 1) then all_materials_possessed = false; break end
-            end
-        end
-        status_message = all_materials_possessed and messages.synthesis_menu.recipe_open or messages.synthesis_menu.recipe_not_open
-    else
-        status_message = messages.synthesis_menu.run_synthesis
-    end
-    table.insert(result_lines, {text = status_message, y = current_y_nq_hq.y})
-    current_y_nq_hq.y = current_y_nq_hq.y + panel_line_height
-    table.insert(result_lines, {text = messages.synthesis_menu.synthesis_item, y = current_y_nq_hq.y})
-    current_y_nq_hq.y = current_y_nq_hq.y + panel_line_height
-
-    local function add_nq_hq_item(item_data, prefix)
-        if item_data then
-            local start_y = current_y_nq_hq.y
-            table.insert(result_lines, {text = string.format("%s %s(%d)", prefix, item_data.name, item_data.quantity or 1), y = current_y_nq_hq.y})
-            current_y_nq_hq.y = current_y_nq_hq.y + panel_line_height
-            
-            local description_start_y = current_y_nq_hq.y
-            add_description_lines(result_lines, item_data.description, current_y_nq_hq, panel_line_height)
-            local end_y = current_y_nq_hq.y
-
-            table.insert(nq_hq_items_layout, {
-                y = start_y,
-                height = end_y - start_y,
-                item = item_data,
-                type = prefix
-            })
+        for id, s in ipairs(messages.synergy_skill.items) do
+            if recipe.craftRank[id] and recipe.craftRank[id] > 0 then sk = sk .. string.format("%s%d ", s.label, recipe.craftRank[id]) end
         end
     end
+    table.insert(rl, sk ~= "" and sk or messages.synthesis_menu.other_skill)
+    cy.y = cy.y + lh
 
-    if recipe.isOpen == 1 then
-        add_nq_hq_item(recipe.result, "NQ")
-        add_nq_hq_item(recipe.resultHQ1, "HQ1")
-        add_nq_hq_item(recipe.resultHQ2, "HQ2")
-        add_nq_hq_item(recipe.resultHQ3, "HQ3")
-    end
-    
-    synthesis_result_panel_background = _update_panel(settings.synthesis_result_panel, synthesis_result_panel_texts, synthesis_result_panel_background, result_lines, 'left')
-    
-    -- 素材パネルの表示
-    local ingredient_lines = {}
-    local materials_layout = {} -- 選択可能な素材アイテムのレイアウト情報を保持
-    local current_y_materials = {y = settings.synthesis_ingredient_panel.pos.y + 5} -- Y座標参照
+    local st = (recipe.isOpen == 1) and messages.synthesis_menu.run_synthesis or (recipe.allMaterialsPossessed and messages.synthesis_menu.recipe_open or messages.synthesis_menu.recipe_not_open)
+    table.insert(rl, st)
+    cy.y = cy.y + lh
+    table.insert(rl, messages.synthesis_menu.synthesis_item)
+    cy.y = cy.y + lh
 
-    table.insert(ingredient_lines, {text = messages.synthesis_menu.elemental_item, y = current_y_materials.y})
-    current_y_materials.y = current_y_materials.y + panel_line_height
-
-    local function add_material_item(item_data, is_crystal)
-        if item_data then
-            local start_y = current_y_materials.y
-            local line_text = string.format("%s(%d/%d)", item_data.name or "(Unknown)", item_data.possession or 0, item_data.quantity or 1)
-            if (item_data.possession or 0) < (item_data.quantity or 1) then
-                line_text = string.format("\\cs(255,100,100)%s\\cr", line_text)
-            end
-            table.insert(ingredient_lines, {text = line_text, y = current_y_materials.y})
-            current_y_materials.y = current_y_materials.y + panel_line_height
-
-            table.insert(materials_layout, {
-                y = start_y,
-                height = panel_line_height, -- 素材には説明文がないため固定高さ
-                item = item_data,
-                type = is_crystal and "crystal" or "ingredient"
-            })
+    local function add_nq_hq(item, pfx)
+        if not item then return end
+        local sy = cy.y
+        table.insert(rl, string.format("%s %s(%d)", pfx, item.name, item.quantity or 1))
+        cy.y = cy.y + lh
+        for _, l in ipairs((item.description or messages.synthesis_menu.not_infomation):split('\n')) do
+            table.insert(rl, " " .. l); cy.y = cy.y + lh
         end
+        table.insert(nq_hq_l, { y=sy, height=cy.y-sy, item=item, type=pfx })
     end
+    if recipe.isOpen == 1 then add_nq_hq(recipe.result, "NQ"); add_nq_hq(recipe.resultHQ1, "HQ1"); add_nq_hq(recipe.resultHQ2, "HQ2"); add_nq_hq(recipe.resultHQ3, "HQ3") end
+    synthesis_result_panel_background = _update_panel(settings.synthesis_result_panel, synthesis_result_panel_texts, synthesis_result_panel_background, rl, 'left')
 
-    add_material_item(recipe.crystal, true)
-    if recipe.ingredient then
-        for _, ing in ipairs(recipe.ingredient) do
-            add_material_item(ing, false)
-        end
+    local il = {}
+    local ml = {}
+    table.insert(il, messages.synthesis_menu.elemental_item); cy.y = cy.y + lh
+    local function add_mat(item, is_c)
+        if not item then return end
+        local sy = cy.y
+        local txt = string.format("%s(%d/%d)", item.name or "?", item.possession or 0, item.quantity or 1)
+        if (item.possession or 0) < (item.quantity or 1) then txt = "\\cs(255,100,100)"..txt.."\\cr" end
+        table.insert(il, txt); cy.y = cy.y + lh
+        table.insert(ml, { y=sy, height=lh, item=item, type=is_c and "crystal" or "ingredient" })
     end
-    synthesis_ingredient_panel_background = _update_panel(settings.synthesis_ingredient_panel, synthesis_ingredient_panel_texts, synthesis_ingredient_panel_background, ingredient_lines, 'left')
+    add_mat(recipe.crystal, true)
+    if recipe.ingredient then for _, ing in ipairs(recipe.ingredient) do add_mat(ing, false) end end
+    synthesis_ingredient_panel_background = _update_panel(settings.synthesis_ingredient_panel, synthesis_ingredient_panel_texts, synthesis_ingredient_panel_background, il, 'left')
 
-    -- 以前のカーソルハイライトを破棄
-    if cursor_highlight_background_sub then
-        cursor_highlight_background_sub:destroy()
-        cursor_highlight_background_sub = nil
-    end
-
-    -- ここからカーソル描画ロジック
-    local active_sub_window = param.get_active_sub_window()
-
-    if param.get_sub_window_active() and (active_sub_window == 'nq_hq' or active_sub_window == 'materials') then
-        local cursor_index = 0
-        local target_layout = nil
-        local panel_settings = nil
-
-        if active_sub_window == 'nq_hq' then
-            cursor_index = param.get_nq_hq_cursor_index()
-            target_layout = nq_hq_items_layout
-            panel_settings = settings.synthesis_result_panel
-        elseif active_sub_window == 'materials' then
-            cursor_index = param.get_materials_cursor_index()
-            target_layout = materials_layout
-            panel_settings = settings.synthesis_ingredient_panel
-        end
-
-        local selected_item_layout = target_layout and target_layout[cursor_index]
-        if panel_settings and selected_item_layout then
-            local highlight_options = {
-                pos = { x = panel_settings.pos.x, y = selected_item_layout.y },
-                bg = { alpha = 100, red = 100, green = 100, blue = 150 }, -- 強調色
-                text = panel_settings.text,
-                flags = panel_settings.flags,
-            }
-            -- 背景サイズをアイテムの高さとパネルの幅に合わせる
-            local highlight_width = panel_settings.width
-            local highlight_height = selected_item_layout.height
-
-            local space_count = math.floor(highlight_width / (panel_settings.text.size * 0.6))
-            if space_count < 1 then space_count = 1 end
-            local line_count = math.ceil(highlight_height / panel_line_height)
-            if line_count < 1 then line_count = 1 end
-            local space_block = ""
-            for i = 1, line_count do
-                space_block = space_block .. string.rep(' ', space_count) .. '\n'
-            end
-
-            cursor_highlight_background_sub = texts.new(space_block, highlight_options) -- ここで代入
+    if cursor_highlight_background_sub then cursor_highlight_background_sub:destroy(); cursor_highlight_background_sub = nil end
+    local asw = param.get_active_sub_window()
+    if param.get_sub_window_active() and (asw == 'nq_hq' or asw == 'materials') then
+        local idx = (asw == 'nq_hq') and param.get_nq_hq_cursor_index() or param.get_materials_cursor_index()
+        local lay = (asw == 'nq_hq') and nq_hq_l[idx] or ml[idx]
+        local ps = (asw == 'nq_hq') and settings.synthesis_result_panel or settings.synthesis_ingredient_panel
+        if lay then
+            local spc = math.floor(ps.width / (ps.text.size * 0.6))
+            local spb = ""
+            for _ = 1, math.ceil(lay.height/lh) do spb = spb .. string.rep(' ', spc) .. '\n' end
+            cursor_highlight_background_sub = texts.new(spb, { pos={x=ps.pos.x, y=lay.y}, bg={alpha=100, red=100, green=100, blue=150}, text=ps.text, flags=ps.flags })
             cursor_highlight_background_sub:show()
         end
     end
 end
 
--- 合成レシピ詳細非表示
 function ui.hide_synthesis_details()
     synthesis_result_panel_background = _update_panel(settings.synthesis_result_panel, synthesis_result_panel_texts, synthesis_result_panel_background, nil)
     synthesis_ingredient_panel_background = _update_panel(settings.synthesis_ingredient_panel, synthesis_ingredient_panel_texts, synthesis_ingredient_panel_background, nil)
-    if cursor_highlight_background_sub then
-        cursor_highlight_background_sub:destroy()
-        cursor_highlight_background_sub = nil
-    end
+    if cursor_highlight_background_sub then cursor_highlight_background_sub:destroy(); cursor_highlight_background_sub = nil end
 end
 
--- 引き出しダイアログ表示
-local dialog_texts = {}
-local dialog_background = nil
-local dialog_button_bg = {}
-local dialog_button_texts = {} -- ボタンテキスト専用
-local quantity_text_obj = nil -- 数量テキストオブジェクトへの参照を保持
+local dialog_texts, dialog_button_bg, dialog_button_texts = {}, {}, {}
+local dialog_background, quantity_text_obj = nil, nil
 
--- ダイアログUI要素を破棄
 function ui.destroy_withdrawal_dialog()
-    for _, text_obj in ipairs(dialog_texts) do
-        text_obj:destroy()
-    end
-    dialog_texts = {}
-    if dialog_background then
-        dialog_background:destroy()
-        dialog_background = nil
-    end
-    for _, bg_obj in ipairs(dialog_button_bg) do
-        bg_obj:destroy()
-    end
-    dialog_button_bg = {}
-    for _, text_obj in ipairs(dialog_button_texts) do
-        text_obj:destroy()
-    end
-    dialog_button_texts = {}
+    for _, t in ipairs(dialog_texts) do t:destroy() end; dialog_texts = {}
+    if dialog_background then dialog_background:destroy(); dialog_background = nil end
+    for _, b in ipairs(dialog_button_bg) do b:destroy() end; dialog_button_bg = {}
+    for _, t in ipairs(dialog_button_texts) do t:destroy() end; dialog_button_texts = {}
     quantity_text_obj = nil
 end
 
--- ボタンの背景とテキストを更新する内部関数
 local function update_dialog_buttons()
-    -- 既存のボタン要素をクリア
-    for _, bg_obj in ipairs(dialog_button_bg) do
-        bg_obj:destroy()
+    for _, b in ipairs(dialog_button_bg) do b:destroy() end; dialog_button_bg = {}
+    for _, t in ipairs(dialog_button_texts) do t:destroy() end; dialog_button_texts = {}
+    local sel = param.get_dialog_selected_button()
+    local dx = (windower.get_windower_settings().ui_x_res / 2) - 150
+    local dy = (windower.get_windower_settings().ui_y_res / 2) - 80
+    local by = dy + 60
+    local function btn(x, txt, is_sel)
+        local b_bg = texts.new(string.rep(' ', 11)..'\n'..string.rep(' ', 11), { pos={x=x, y=by}, bg={alpha=255, red=is_sel and 100 or 50, green=is_sel and 100 or 50, blue=is_sel and 150 or 50}, text={size=12}, flags={bold=true} })
+        b_bg:show(); table.insert(dialog_button_bg, b_bg)
+        local b_t = texts.new(txt, { pos={x=x+6, y=by+8}, text={size=12, color={255,255,255,255}, align='center'}, bg={alpha=0} })
+        b_t:show(); table.insert(dialog_button_texts, b_t)
     end
-    dialog_button_bg = {}
-    for _, text_obj in ipairs(dialog_button_texts) do
-        text_obj:destroy()
-    end
-    dialog_button_texts = {}
-
-    local selected_button = param.get_dialog_selected_button()
-    local item = param.get_dialog_item()
-    if not item then return end
-    
-    local dialog_x = (windower.get_windower_settings().ui_x_res / 2) - (dialog_width / 2)
-    local dialog_y = (windower.get_windower_settings().ui_y_res / 2) - (dialog_height / 2)
-    local line_y = dialog_y + 10 + 50
-
-    -- ボタンの位置とサイズ
-    local button_y = line_y
-    local cancel_x = dialog_x + (dialog_width / 2) - 80
-    local withdraw_x = dialog_x + (dialog_width / 2) + 20
-    local button_width = 60
-    
-    -- 1. 背景を描画
-    local function create_button_bg(x, y, is_selected)
-        local button_bg_options = {
-            pos = { x = x, y = y },
-            bg = { alpha = 255, red = 50, green = 50, blue = 50 },
-            text = { size = 12, font = 'MS Gothic' },
-            flags = { bold = true, draggable = false }
-        }
-        if is_selected then
-            button_bg_options.bg = { alpha = 255, red = 100, green = 100, blue = 150 }
-        end
-        local button_bg = texts.new(string.rep(' ', (button_width / 6) + 1) .. '\n' .. string.rep(' ', (button_width / 6) + 1), button_bg_options)
-        button_bg:show()
-        table.insert(dialog_button_bg, button_bg)
-    end
-    create_button_bg(cancel_x, button_y, selected_button == 'cancel')
-    create_button_bg(withdraw_x, button_y, selected_button == 'withdraw')
-
-    -- 2. テキストを描画
-    local cancel_text = texts.new(messages.synthesis_menu.dialog_cancel, {
-        pos = { x = cancel_x + (button_width / 2) - 24, y = button_y + 2 + 6 },
-        text = { size = 12, font = 'MS Gothic', color = {255,255,255,255}, align = 'center' },
-        bg = { alpha = 0 }
-    })
-    table.insert(dialog_button_texts, cancel_text)
-    cancel_text:show()
-
-    local withdraw_text = texts.new(messages.synthesis_menu.dialog_get_item, {
-        pos = { x = withdraw_x + (button_width / 2) - 16, y = button_y + 2 + 6 },
-        text = { size = 12, font = 'MS Gothic', color = {255,255,255,255}, align = 'center' },
-        bg = { alpha = 0 }
-    })
-    table.insert(dialog_button_texts, withdraw_text)
-    withdraw_text:show()
+    btn(dx + 70, messages.synthesis_menu.dialog_cancel, sel == 'cancel')
+    btn(dx + 170, messages.synthesis_menu.dialog_get_item, sel == 'withdraw')
 end
 
--- ダイアログを初めて作成する
 function ui.create_withdrawal_dialog()
-    ui.destroy_withdrawal_dialog() -- 念のため既存のものをクリア
-
+    ui.destroy_withdrawal_dialog()
     local item = param.get_dialog_item()
     if not item then return end
-
-    local withdraw_quantity = param.get_dialog_withdraw_quantity()
-    local max_quantity = item.quantity
-    if item.stackSize < item.quantity then
-        max_quantity = item.stackSize
-    end
-
-    local dialog_x = (windower.get_windower_settings().ui_x_res / 2) - (dialog_width / 2)
-    local dialog_y = (windower.get_windower_settings().ui_y_res / 2) - (dialog_height / 2)
-
-    local bg_options = {
-        pos = { x = dialog_x, y = dialog_y },
-        bg = { alpha = 230, red = 0, green = 0, blue = 0 },
-        text = { size = 12, font = 'MS Gothic' },
-        flags = { bold = true, draggable = false }
-    }
-    dialog_background = texts.new(string.rep(string.rep(' ', 40) .. '\n', 10), bg_options)
+    local dx = (windower.get_windower_settings().ui_x_res / 2) - 150
+    local dy = (windower.get_windower_settings().ui_y_res / 2) - 80
+    dialog_background = texts.new(string.rep(string.rep(' ', 40) .. '\n', 10), { pos={x=dx, y=dy}, bg={alpha=230, red=0, green=0, blue=0}, text={size=12} })
     dialog_background:show()
-
-    local line_y = dialog_y + 10
-    local text_x_offset = 15
-
-    local item_name_text = texts.new(string.format(messages.synthesis_menu.confirm_removal, item.name), {
-        pos = { x = dialog_x + text_x_offset, y = line_y },
-        text = { size = 12, font = 'MS Gothic', color = {255,255,255,255} },
-        bg = { alpha = 0 }
-    })
-    table.insert(dialog_texts, item_name_text)
-    item_name_text:show()
-    line_y = line_y + 20
-
-    quantity_text_obj = texts.new(string.format(messages.synthesis_menu.quantity_change, withdraw_quantity, max_quantity), {
-        pos = { x = dialog_x + text_x_offset, y = line_y },
-        text = { size = 12, font = 'MS Gothic', color = {255,255,255,255} },
-        bg = { alpha = 0 }
-    })
-    table.insert(dialog_texts, quantity_text_obj)
-    quantity_text_obj:show()
-
-    update_dialog_buttons() -- 初回のボタンを描画
+    local t1 = texts.new(string.format(messages.synthesis_menu.confirm_removal, item.name), { pos={x=dx+15, y=dy+10}, text={size=12, color={255,255,255,255}}, bg={alpha=0} })
+    t1:show(); table.insert(dialog_texts, t1)
+    local mq = math.min(item.quantity, item.stackSize)
+    quantity_text_obj = texts.new(string.format(messages.synthesis_menu.quantity_change, param.get_dialog_withdraw_quantity(), mq), { pos={x=dx+15, y=dy+30}, text={size=12, color={255,255,255,255}}, bg={alpha=0} })
+    quantity_text_obj:show(); table.insert(dialog_texts, quantity_text_obj)
+    update_dialog_buttons()
 end
 
--- ダイアログの表示内容を部分的に更新
-function ui.update_withdrawal_dialog(update_type)
+function ui.update_withdrawal_dialog(ut)
     if not param.get_dialog_open() then return end
-
-    if update_type == 'quantity' then
+    if ut == 'quantity' and quantity_text_obj then
         local item = param.get_dialog_item()
-        if not item or not quantity_text_obj then return end
-        local withdraw_quantity = param.get_dialog_withdraw_quantity()
-        local max_quantity = item.quantity
-        if item.stackSize < item.quantity then
-            max_quantity = item.stackSize
-        end
-        quantity_text_obj:text(string.format('個数 %d/%d (上下で変更)', withdraw_quantity, max_quantity))
-    elseif update_type == 'buttons' then
-        update_dialog_buttons()
-    end
+        local mq = math.min(item.quantity, item.stackSize)
+        quantity_text_obj:text(string.format('個数 %d/%d (上下で変更)', param.get_dialog_withdraw_quantity(), mq))
+    elseif ut == 'buttons' then update_dialog_buttons() end
 end
 
--- 合成確認ダイアログのUI要素
-local craft_confirm_dialog_texts = {}
-local craft_confirm_dialog_background = nil
-local craft_confirm_dialog_button_bg = {}
-local craft_confirm_dialog_button_texts = {}
-
--- ボタンの背景とテキストを更新する内部関数 (合成確認用)
-local function update_craft_confirm_dialog_buttons()
-    -- 既存のボタン要素をクリア
-    for _, bg_obj in ipairs(craft_confirm_dialog_button_bg) do
-        bg_obj:destroy()
-    end
-    craft_confirm_dialog_button_bg = {}
-    for _, text_obj in ipairs(craft_confirm_dialog_button_texts) do
-        text_obj:destroy()
-    end
-    craft_confirm_dialog_button_texts = {}
-
-    local selected_button = param.get_craft_confirm_selected_button()
-    local item_name = param.get_craft_confirm_item_name()
-    if not item_name then return end
-    
-    local dialog_x = (windower.get_windower_settings().ui_x_res / 2) - (dialog_width / 2)
-    local dialog_y = (windower.get_windower_settings().ui_y_res / 2) - (dialog_height / 2)
-    local line_y = dialog_y + 10 + 50 -- メッセージの下に配置
-
-    -- ボタンの位置とサイズ
-    local button_y = line_y
-    local no_x = dialog_x + (dialog_width / 2) - 80
-    local yes_x = dialog_x + (dialog_width / 2) + 20
-    local button_width = 60
-    
-    -- 1. 背景を描画
-    local function create_button_bg(x, y, is_selected)
-        local button_bg_options = {
-            pos = { x = x, y = y },
-            bg = { alpha = 255, red = 50, green = 50, blue = 50 },
-            text = { size = 12, font = 'MS Gothic' },
-            flags = { bold = true, draggable = false }
-        }
-        if is_selected then
-            button_bg_options.bg = { alpha = 255, red = 100, green = 100, blue = 150 }
-        end
-        local button_bg = texts.new(string.rep(' ', (button_width / 6) + 1) .. '\n' .. string.rep(' ', (button_width / 6) + 1), button_bg_options)
-        button_bg:show()
-        table.insert(craft_confirm_dialog_button_bg, button_bg)
-    end
-    create_button_bg(no_x, button_y, selected_button == 'no')
-    create_button_bg(yes_x, button_y, selected_button == 'yes')
-
-    -- 2. テキストを描画
-    local no_text = texts.new(messages.no_button, {
-        pos = { x = no_x + (button_width / 2) - 12, y = button_y + 2 + 6 },
-        text = { size = 12, font = 'MS Gothic', color = {255,255,255,255}, align = 'center' },
-        bg = { alpha = 0 }
-    })
-    table.insert(craft_confirm_dialog_button_texts, no_text)
-    no_text:show()
-
-    local yes_text = texts.new(messages.yes_button, {
-        pos = { x = yes_x + (button_width / 2) - 12, y = button_y + 2 + 6 },
-        text = { size = 12, font = 'MS Gothic', color = {255,255,255,255}, align = 'center' },
-        bg = { alpha = 0 }
-    })
-    table.insert(craft_confirm_dialog_button_texts, yes_text)
-    yes_text:show()
-end
-
--- 合成確認ダイアログのUI要素を破棄
+local ccd_texts, ccd_bg, ccd_btn_bg, ccd_btn_texts = {}, nil, {}, {}
 function ui.destroy_craft_confirm_dialog()
-    for _, text_obj in ipairs(craft_confirm_dialog_texts) do
-        text_obj:destroy()
-    end
-    craft_confirm_dialog_texts = {}
-    if craft_confirm_dialog_background then
-        craft_confirm_dialog_background:destroy()
-        craft_confirm_dialog_background = nil
-    end
-    for _, bg_obj in ipairs(craft_confirm_dialog_button_bg) do
-        bg_obj:destroy()
-    end
-    craft_confirm_dialog_button_bg = {}
-    for _, text_obj in ipairs(craft_confirm_dialog_button_texts) do
-        text_obj:destroy()
-    end
-    craft_confirm_dialog_button_texts = {}
+    for _, t in ipairs(ccd_texts) do t:destroy() end; ccd_texts = {}
+    if ccd_bg then ccd_bg:destroy(); ccd_bg = nil end
+    for _, b in ipairs(ccd_btn_bg) do b:destroy() end; ccd_btn_bg = {}
+    for _, t in ipairs(ccd_btn_texts) do t:destroy() end; ccd_btn_texts = {}
 end
 
--- 合成確認ダイアログを作成
-function ui.create_craft_confirm_dialog(item_name)
-    ui.destroy_craft_confirm_dialog() -- 念のため既存のものをクリア
-
-    local dialog_x = (windower.get_windower_settings().ui_x_res / 2) - (dialog_width / 2)
-    local dialog_y = (windower.get_windower_settings().ui_y_res / 2) - (dialog_height / 2)
-
-    local bg_options = {
-        pos = { x = dialog_x, y = dialog_y },
-        bg = { alpha = 230, red = 0, green = 0, blue = 0 },
-        text = { size = 12, font = 'MS Gothic' },
-        flags = { bold = true, draggable = false }
-    }
-    craft_confirm_dialog_background = texts.new(string.rep(string.rep(' ', 40) .. '\n', 10), bg_options)
-    craft_confirm_dialog_background:show()
-
-    local line_y = dialog_y + 20
-    local text_x_offset = 15
-
-    local message_text = string.format(messages.synthesis_menu.confirm_synthesis, item_name)
-    local message_obj = texts.new(message_text, {
-        pos = { x = dialog_x + text_x_offset, y = line_y },
-        text = { size = 12, font = 'MS Gothic', color = {255,255,255,255} },
-        bg = { alpha = 0 }
-    })
-    table.insert(craft_confirm_dialog_texts, message_obj)
-    message_obj:show()
-
-    update_craft_confirm_dialog_buttons() -- 初回のボタンを描画
-end
-
--- 合成確認ダイアログの表示内容を部分的に更新 (現状ボタンのみ)
-function ui.update_craft_confirm_dialog(update_type)
-    if not param.get_craft_confirm_dialog_open() then return end
-
-    if update_type == 'buttons' then
-        update_craft_confirm_dialog_buttons()
+local function update_ccd_buttons()
+    for _, b in ipairs(ccd_btn_bg) do b:destroy() end; ccd_btn_bg = {}
+    for _, t in ipairs(ccd_btn_texts) do t:destroy() end; ccd_btn_texts = {}
+    local sel = param.get_craft_confirm_selected_button()
+    local dx = (windower.get_windower_settings().ui_x_res / 2) - 150
+    local dy = (windower.get_windower_settings().ui_y_res / 2) - 80
+    local by = dy + 60
+    local function btn(x, txt, is_sel)
+        local b_bg = texts.new(string.rep(' ', 11)..'\n'..string.rep(' ', 11), { pos={x=x, y=by}, bg={alpha=255, red=is_sel and 100 or 50, green=is_sel and 100 or 50, blue=is_sel and 150 or 50}, text={size=12}, flags={bold=true} })
+        b_bg:show(); table.insert(ccd_btn_bg, b_bg)
+        local b_t = texts.new(txt, { pos={x=x+15, y=by+8}, text={size=12, color={255,255,255,255}, align='center'}, bg={alpha=0} })
+        b_t:show(); table.insert(ccd_btn_texts, b_t)
     end
+    btn(dx + 70, messages.no_button, sel == 'no'); btn(dx + 170, messages.yes_button, sel == 'yes')
 end
 
--- 完了ダイアログのUI要素
-local success_dialog_texts = {}
-local success_dialog_background = nil
-local success_dialog_button_bg = nil
-local success_dialog_button_text = nil
+function ui.create_craft_confirm_dialog(name)
+    ui.destroy_craft_confirm_dialog()
+    local dx = (windower.get_windower_settings().ui_x_res / 2) - 150
+    local dy = (windower.get_windower_settings().ui_y_res / 2) - 80
+    ccd_bg = texts.new(string.rep(string.rep(' ', 40) .. '\n', 10), { pos={x=dx, y=dy}, bg={alpha=230, red=0, green=0, blue=0}, text={size=12} })
+    ccd_bg:show()
+    local t = texts.new(string.format(messages.synthesis_menu.confirm_synthesis, name), { pos={x=dx+15, y=dy+20}, text={size=12, color={255,255,255,255}}, bg={alpha=0} })
+    t:show(); table.insert(ccd_texts, t)
+    update_ccd_buttons()
+end
+function ui.update_craft_confirm_dialog(ut) if param.get_craft_confirm_dialog_open() and ut == 'buttons' then update_ccd_buttons() end end
 
--- レシピ解放ダイアログのUI要素
-local open_recipe_dialog_texts = {}
-local open_recipe_dialog_background = nil
-
--- 完了ダイアログを破棄
+local sd_texts, sd_bg, sd_btn_bg, sd_btn_t = {}, nil, nil, nil
 function ui.destroy_success_dialog()
-    for _, text_obj in ipairs(success_dialog_texts) do
-        text_obj:destroy()
-    end
-    success_dialog_texts = {}
-    if success_dialog_background then
-        success_dialog_background:destroy()
-        success_dialog_background = nil
-    end
-    if success_dialog_button_bg then
-        success_dialog_button_bg:destroy()
-        success_dialog_button_bg = nil
-    end
-    if success_dialog_button_text then
-        success_dialog_button_text:destroy()
-        success_dialog_button_text = nil
-    end
+    for _, t in ipairs(sd_texts) do t:destroy() end; sd_texts = {}
+    if sd_bg then sd_bg:destroy(); sd_bg = nil end
+    if sd_btn_bg then sd_btn_bg:destroy(); sd_btn_bg = nil end
+    if sd_btn_t then sd_btn_t:destroy(); sd_btn_t = nil end
 end
 
--- 完了ダイアログを作成
-function ui.create_success_dialog(message_text)
-    ui.destroy_success_dialog() -- 既存のダイアログをクリア
-
-    -- メッセージの行数をカウント
-    local _, line_count = string.gsub(message_text, "\n", "")
-    line_count = line_count + 1 -- 最低1行
-
-    -- 行数に基づいて高さを計算 (1行あたり20px + 上下パディング + ボタン領域)
-    local dynamic_height = 80 + (line_count * 20)
-    if dynamic_height < 120 then dynamic_height = 120 end -- 最小高さ
-
-    local dialog_x = (windower.get_windower_settings().ui_x_res / 2) - (dialog_width / 2)
-    local dialog_y = (windower.get_windower_settings().ui_y_res / 2) - (dynamic_height / 2)
-
-    -- 背景
-    local bg_options = {
-        pos = { x = dialog_x, y = dialog_y },
-        bg = { alpha = 230, red = 0, green = 0, blue = 0 },
-        text = { size = 12, font = 'MS Gothic' },
-        flags = { bold = true, draggable = false }
-    }
-    -- 背景行数も動的に
-    local bg_line_count = math.ceil(dynamic_height / 16)
-    success_dialog_background = texts.new(string.rep(string.rep(' ', 40) .. '\n', bg_line_count), bg_options)
-    success_dialog_background:show()
-
-    -- メッセージテキスト
-    local message_obj = texts.new(message_text, {
-        pos = { x = dialog_x + 15, y = dialog_y + 20 },
-        text = { size = 12, font = 'MS Gothic', color = {255,255,255,255} },
-        bg = { alpha = 0 }
-    })
-    table.insert(success_dialog_texts, message_obj)
-    message_obj:show()
-
-    -- OKボタン
-    local button_width = 60
-    local button_x = dialog_x + (dialog_width / 2) - (button_width / 2)
-    local button_y = dialog_y + dynamic_height - 48
-
-    -- ボタン背景 (選択状態)
-    success_dialog_button_bg = texts.new(string.rep(' ', (button_width / 6) + 1) .. '\n' .. string.rep(' ', (button_width / 6) + 1), {
-        pos = { x = button_x, y = button_y },
-        bg = { alpha = 255, red = 100, green = 100, blue = 150 }, -- 選択色
-        text = { size = 12, font = 'MS Gothic' },
-        flags = { bold = true, draggable = false }
-    })
-    success_dialog_button_bg:show()
-
-    -- ボタンテキスト
-    success_dialog_button_text = texts.new(messages.ok_button, {
-        pos = { x = button_x + (button_width / 2) + 6, y = button_y + 2 + 6 },
-        text = { size = 12, font = 'MS Gothic', color = {255,255,255,255}, align = 'center' },
-        bg = { alpha = 0 }
-    })
-    success_dialog_button_text:show()
+function ui.create_success_dialog(msg)
+    ui.destroy_success_dialog()
+    local _, lc = string.gsub(msg, "\n", ""); lc = lc + 1
+    local h = 80 + lc * 20; if h < 120 then h = 120 end
+    local dx = (windower.get_windower_settings().ui_x_res / 2) - 150
+    local dy = (windower.get_windower_settings().ui_y_res / 2) - h/2
+    sd_bg = texts.new(string.rep(string.rep(' ', 40) .. '\n', math.ceil(h/16)), { pos={x=dx, y=dy}, bg={alpha=230}, text={size=12} })
+    sd_bg:show()
+    local t = texts.new(msg, { pos={x=dx+15, y=dy+20}, text={size=12, color={255,255,255,255}}, bg={alpha=0} })
+    t:show(); table.insert(sd_texts, t)
+    local bx = dx + 120; local by = dy + h - 48
+    sd_btn_bg = texts.new(string.rep(' ', 11)..'\n'..string.rep(' ', 11), { pos={x=bx, y=by}, bg={alpha=255, red=100, green=100, blue=150}, text={size=12} })
+    sd_btn_bg:show()
+    sd_btn_t = texts.new(messages.ok_button, { pos={x=bx+20, y=by+8}, text={size=12, color={255,255,255,255}, align='center'}, bg={alpha=0} })
+    sd_btn_t:show()
 end
 
--- レシピ解放ダイアログを破棄
+local ord_texts, ord_bg = {}, nil
 function ui.destroy_open_recipe_dialog()
-    for _, text_obj in ipairs(open_recipe_dialog_texts) do
-        text_obj:destroy()
-    end
-    open_recipe_dialog_texts = {}
-    if open_recipe_dialog_background then
-        open_recipe_dialog_background:destroy()
-        open_recipe_dialog_background = nil
-    end
+    for _, t in ipairs(ord_texts) do t:destroy() end; ord_texts = {}
+    if ord_bg then ord_bg:destroy(); ord_bg = nil end
+end
+function ui.create_open_recipe_dialog(name)
+    ui.destroy_open_recipe_dialog()
+    local dx = (windower.get_windower_settings().ui_x_res / 2) - 150
+    local dy = (windower.get_windower_settings().ui_y_res / 2) - 80
+    ord_bg = texts.new(string.rep(string.rep(' ', 40) .. '\n', 10), { pos={x=dx, y=dy}, bg={alpha=230}, text={size=12} })
+    ord_bg:show()
+    local t = texts.new(string.format(messages.synthesis_menu.recipe_opened, name), { pos={x=dx+15, y=dy+20}, text={size=12, color={255,255,255,255}}, bg={alpha=0} })
+    t:show(); table.insert(ord_texts, t)
 end
 
--- レシピ解放ダイアログを作成
-function ui.create_open_recipe_dialog(recipe_name)
-    ui.destroy_open_recipe_dialog() -- 既存のダイアログをクリア
-
-    local dialog_x = (windower.get_windower_settings().ui_x_res / 2) - (dialog_width / 2)
-    local dialog_y = (windower.get_windower_settings().ui_y_res / 2) - (dialog_height / 2)
-
-    -- 背景
-    local bg_options = {
-        pos = { x = dialog_x, y = dialog_y },
-        bg = { alpha = 230, red = 0, green = 0, blue = 0 },
-        text = { size = 12, font = 'MS Gothic' },
-        flags = { bold = true, draggable = false }
-    }
-
-    open_recipe_dialog_background = texts.new(string.rep(string.rep(' ', 40) .. '\n', 10), bg_options)
-    open_recipe_dialog_background:show()
-
-    -- メッセージテキスト
-    local message_text = string.format(messages.synthesis_menu.recipe_opened, recipe_name)
-    local message_obj = texts.new(message_text, {
-        pos = { x = dialog_x + 15, y = dialog_y + 20 },
-        text = { size = 12, font = 'MS Gothic', color = {255,255,255,255} },
-        bg = { alpha = 0 }
-    })
-    table.insert(open_recipe_dialog_texts, message_obj)
-    message_obj:show()
-end
-
--- エラーダイアログのUI要素
-local error_dialog_texts = {}
-local error_dialog_background = nil
-local error_dialog_button_bg = nil
-local error_dialog_button_text = nil
-
--- エラーダイアログを破棄
+local ed_texts, ed_bg, ed_btn_bg, ed_btn_t = {}, nil, nil, nil
 function ui.destroy_error_dialog()
-    for _, text_obj in ipairs(error_dialog_texts) do
-        text_obj:destroy()
-    end
-    error_dialog_texts = {}
-    if error_dialog_background then
-        error_dialog_background:destroy()
-        error_dialog_background = nil
-    end
-    if error_dialog_button_bg then
-        error_dialog_button_bg:destroy()
-        error_dialog_button_bg = nil
-    end
-    if error_dialog_button_text then
-        error_dialog_button_text:destroy()
-        error_dialog_button_text = nil
-    end
+    for _, t in ipairs(ed_texts) do t:destroy() end; ed_texts = {}
+    if ed_bg then ed_bg:destroy(); ed_bg = nil end
+    if ed_btn_bg then ed_btn_bg:destroy(); ed_btn_bg = nil end
+    if ed_btn_t then ed_btn_t:destroy(); ed_btn_t = nil end
+end
+function ui.create_error_dialog(msg)
+    ui.destroy_error_dialog()
+    local _, lc = string.gsub(msg, "\n", ""); lc = lc + 1
+    local h = 80 + lc * 20; if h < 120 then h = 120 end
+    local dx = (windower.get_windower_settings().ui_x_res / 2) - 150
+    local dy = (windower.get_windower_settings().ui_y_res / 2) - h/2
+    ed_bg = texts.new(string.rep(string.rep(' ', 40) .. '\n', math.ceil(h/16)), { pos={x=dx, y=dy}, bg={alpha=230, red=30}, text={size=12} })
+    ed_bg:show()
+    local t = texts.new(msg, { pos={x=dx+15, y=dy+20}, text={size=12, color={255,255,255,255}}, bg={alpha=0} })
+    t:show(); table.insert(ed_texts, t)
+    local bx = dx + 120; local by = dy + h - 48
+    ed_btn_bg = texts.new(string.rep(' ', 11)..'\n'..string.rep(' ', 11), { pos={x=bx, y=by}, bg={alpha=255, red=100, green=100, blue=150}, text={size=12} })
+    ed_btn_bg:show()
+    ed_btn_t = texts.new(messages.ok_button, { pos={x=bx+20, y=by+8}, text={size=12, color={255,255,255,255}, align='center'}, bg={alpha=0} })
+    ed_btn_t:show()
 end
 
--- エラーダイアログを作成
-function ui.create_error_dialog(message_text)
-    ui.destroy_error_dialog() -- 既存のダイアログをクリア
-
-    -- メッセージの行数をカウント
-    local _, line_count = string.gsub(message_text, "\n", "")
-    line_count = line_count + 1 -- 最低1行
-
-    -- 行数に基づいて高さを計算 (1行あたり20px + 上下パディング + ボタン領域)
-    local dynamic_height = 80 + (line_count * 20)
-    if dynamic_height < 120 then dynamic_height = 120 end -- 最小高さ
-
-    local dialog_x = (windower.get_windower_settings().ui_x_res / 2) - (dialog_width / 2)
-    local dialog_y = (windower.get_windower_settings().ui_y_res / 2) - (dynamic_height / 2)
-
-    -- 背景
-    local bg_options = {
-        pos = { x = dialog_x, y = dialog_y },
-        bg = { alpha = 230, red = 30, green = 0, blue = 0 }, -- 暗い赤色
-        text = { size = 12, font = 'MS Gothic' },
-        flags = { bold = true, draggable = false }
-    }
-    -- 背景行数も動的に
-    local bg_line_count = math.ceil(dynamic_height / 16)
-    error_dialog_background = texts.new(string.rep(string.rep(' ', 40) .. '\n', bg_line_count), bg_options)
-    error_dialog_background:show()
-
-    -- メッセージテキスト
-    local message_obj = texts.new(message_text, {
-        pos = { x = dialog_x + 15, y = dialog_y + 20 },
-        text = { size = 12, font = 'MS Gothic', color = {255,255,255,255} },
-        bg = { alpha = 0 }
-    })
-    table.insert(error_dialog_texts, message_obj)
-    message_obj:show()
-
-    -- OKボタン
-    local button_width = 60
-    local button_x = dialog_x + (dialog_width / 2) - (button_width / 2)
-    local button_y = dialog_y + dynamic_height - 48
-
-    -- ボタン背景 (選択状態)
-    error_dialog_button_bg = texts.new(string.rep(' ', (button_width / 6) + 1) .. '\n' .. string.rep(' ', (button_width / 6) + 1), {
-        pos = { x = button_x, y = button_y },
-        bg = { alpha = 255, red = 100, green = 100, blue = 150 }, -- 選択色
-        text = { size = 12, font = 'MS Gothic' },
-        flags = { bold = true, draggable = false }
-    })
-    error_dialog_button_bg:show()
-
-    -- ボタンテキスト
-    error_dialog_button_text = texts.new(messages.ok_button, {
-        pos = { x = button_x + (button_width / 2) + 6, y = button_y + 2 + 6 },
-        text = { size = 12, font = 'MS Gothic', color = {255,255,255,255}, align = 'center' },
-        bg = { alpha = 0 }
-    })
-    error_dialog_button_text:show()
+function ui.show_mission_details(name, status, category_key)
+    if not name then ui.hide_mission_details(); return end
+    local sl = (status == -1) and messages.mission_status.completed or (status == 0 and messages.mission_status.not_started or messages.mission_status.in_progress)
+    local l = { " 状態: " .. sl }
+    local gui = category_key and mission_definitions.mission_guidance[category_key] and mission_definitions.mission_guidance[category_key][name]
+    if status ~= -1 and gui then table.insert(l, ""); table.insert(l, "--- ガイダンス ---"); for _, ln in ipairs(gui:split('\n')) do table.insert(l, " " .. ln) end end
+    mission_detail_panel_background = _update_panel(settings.mission_detail_panel, mission_detail_panel_texts, mission_detail_panel_background, l, 'left')
 end
+function ui.hide_mission_details() mission_detail_panel_background = _update_panel(settings.mission_detail_panel, mission_detail_panel_texts, mission_detail_panel_background, nil) end
 
--- ミッション詳細表示
-function ui.show_mission_details(mission_name, status, category_key)
-    if not mission_name then
-        ui.hide_mission_details()
-        return
-    end
-
-    local status_label = ""
-    local description = ""
-    local show_guidance = false
-
-    local category_guidance = category_key and mission_definitions.mission_guidance[category_key]
-    local guidance_text = category_guidance and category_guidance[mission_name]
-
-    if status == -1 then
-        status_label = messages.mission_status.completed
-        show_guidance = false
-    elseif status == 0 then
-        status_label = messages.mission_status.not_started
-        description = guidance_text or "ガイダンスが設定されていません。"
-        show_guidance = true
-    else
-        status_label = messages.mission_status.in_progress
-        description = guidance_text or "進行中のためガイダンスはありません。"
-        show_guidance = true
-    end
-    local lines = {
-        " 状態: " .. status_label,
-    }
-
-    if show_guidance then
-        table.insert(lines, "")
-        table.insert(lines, "--- ガイダンス ---")
-        if description ~= "" then
-            local desc_lines = description:split('\n')
-            for _, line in ipairs(desc_lines) do
-                table.insert(lines, " " .. line)
-            end
-        else
-            table.insert(lines, " (特になし)")
-        end
-    end
-
-    mission_detail_panel_background = _update_panel(settings.mission_detail_panel, mission_detail_panel_texts, mission_detail_panel_background, lines, 'left')
+function ui.show_eminence_details(item, status)
+    if not item then ui.hide_eminence_details(); return end
+    local sl = (status == 0) and messages.eminence_status.not_achieved or (status == 1 and messages.eminence_status.achieved or messages.eminence_status.reward_received)
+    local l = { " 状態: " .. sl, "", "--- 内容 ---", " " .. (item.message or ""), "", "--- 報酬 ---", " " .. (item.reward or "") }
+    mission_detail_panel_background = _update_panel(settings.mission_detail_panel, mission_detail_panel_texts, mission_detail_panel_background, l, 'left')
 end
-
--- ミッション詳細非表示
-function ui.hide_mission_details()
-    mission_detail_panel_background = _update_panel(settings.mission_detail_panel, mission_detail_panel_texts, mission_detail_panel_background, nil)
-end
-
--- エミネンス詳細表示
-function ui.show_eminence_details(eminence_item, status)
-    if not eminence_item then
-        ui.hide_eminence_details()
-        return
-    end
-
-    local status_label = ""
-    if status == 0 then
-        status_label = messages.eminence_status.not_achieved
-    elseif status == 1 then
-        status_label = messages.eminence_status.achieved
-    elseif status == 2 then
-        status_label = messages.eminence_status.reward_received
-    else
-        status_label = "不明"
-    end
-
-    local lines = {
-        " 状態: " .. status_label,
-        "",
-        "--- 内容 ---",
-        " " .. (eminence_item.message or ""),
-        "",
-        "--- 報酬 ---",
-        " " .. (eminence_item.reward or ""),
-    }
-
-    mission_detail_panel_background = _update_panel(settings.mission_detail_panel, mission_detail_panel_texts, mission_detail_panel_background, lines, 'left')
-end
-
--- エミネンス詳細非表示
-function ui.hide_eminence_details()
-    mission_detail_panel_background = _update_panel(settings.mission_detail_panel, mission_detail_panel_texts, mission_detail_panel_background, nil)
-end
+function ui.hide_eminence_details() ui.hide_mission_details() end
 
 return ui

@@ -215,7 +215,16 @@ function ui.update_menu_display(menu_data)
             else
                 recipe_name = item.label
             end
-            local label_text = prefix .. recipe_name
+
+            local label_suffix = ""
+            local color_prefix = ""
+            local color_suffix = ""
+            if item.status == 1 then
+                label_suffix = " ${icon|!}"
+                color_prefix = "\\cs(255,255,0)" -- 黄色
+                color_suffix = "\\cr"
+            end
+            local label_text = prefix .. color_prefix .. recipe_name .. label_suffix .. color_suffix
             local quantity_text = tostring(item.quantity or '')
         if string.len(label_text) > max_label_len then
             max_label_len = string.len(label_text)
@@ -1175,6 +1184,42 @@ end
 
 -- ミッション詳細非表示
 function ui.hide_mission_details()
+    mission_detail_panel_background = _update_panel(settings.mission_detail_panel, mission_detail_panel_texts, mission_detail_panel_background, nil)
+end
+
+-- エミネンス詳細表示
+function ui.show_eminence_details(eminence_item, status)
+    if not eminence_item then
+        ui.hide_eminence_details()
+        return
+    end
+
+    local status_label = ""
+    if status == 0 then
+        status_label = messages.eminence_status.not_achieved
+    elseif status == 1 then
+        status_label = messages.eminence_status.achieved
+    elseif status == 2 then
+        status_label = messages.eminence_status.reward_received
+    else
+        status_label = "不明"
+    end
+
+    local lines = {
+        " 状態: " .. status_label,
+        "",
+        "--- 内容 ---",
+        " " .. (eminence_item.message or ""),
+        "",
+        "--- 報酬 ---",
+        " " .. (eminence_item.reward or ""),
+    }
+
+    mission_detail_panel_background = _update_panel(settings.mission_detail_panel, mission_detail_panel_texts, mission_detail_panel_background, lines, 'left')
+end
+
+-- エミネンス詳細非表示
+function ui.hide_eminence_details()
     mission_detail_panel_background = _update_panel(settings.mission_detail_panel, mission_detail_panel_texts, mission_detail_panel_background, nil)
 end
 

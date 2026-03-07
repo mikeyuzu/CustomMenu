@@ -15,7 +15,7 @@ menu_definitions.main_menu = {
     items = {
         { id = 'collection', label = messages.main_menu.items.collection, type = menu_definitions.types.FUNCTION, func_name = 'Handle_Collection_Menu' },
         { id = 'synthesis', label = messages.main_menu.items.synthesis, type = menu_definitions.types.SUBMENU, submenu_id = 'synthesis_menu' },
-        { id = 'eminence', label = messages.main_menu.items.eminence, type = menu_definitions.types.FETCH },
+        { id = 'eminence', label = messages.main_menu.items.eminence, type = menu_definitions.types.FUNCTION, func_name = 'Handle_Eminence_Menu' },
         { id = 'quest_items', label = messages.main_menu.items.quest_items, type = menu_definitions.types.FETCH },
         { id = 'contents', label = messages.main_menu.items.contents, type = menu_definitions.types.FETCH },
         { id = 'notice', label = messages.main_menu.items.notice, type = menu_definitions.types.FETCH },

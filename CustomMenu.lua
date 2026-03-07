@@ -54,6 +54,7 @@ local param = require('param')
 local menu_definitions = require('menu_definitions')
 local synergy_category_generator = require('synergy_category_generator')
 local mission_definitions = require('mission_definitions')
+local eminence_definitions = require('eminence_definitions')
 
 -- ミッションカテゴリ内の項目を表示
 local function Handle_Mission_Category_Selection(category_label, missions, mission_results, category_key)
@@ -280,6 +281,92 @@ local function Handle_Collection_Menu()
     end)
 end
 
+-- エミネンス・レコード：カテゴリ別項目を表示
+local function Handle_Eminence_Category_Selection(category_label, items_def, eminence_results)
+    local menu_items = {}
+    
+    for i, item_def in pairs(items_def) do
+        local status = eminence_results[i + 1] or 0 -- APIは0始まりの配列かもしれないがLuaは1始まり
+        
+        table.insert(menu_items, {
+            id = 'EMINENCE_ITEM_' .. i,
+            label = item_def.label,
+            status = status,
+            data = item_def,
+            is_eminence = true
+        })
+    end
+
+    local menu_data = {
+        title = category_label,
+        items = menu_items
+    }
+    param.set_current_menu(menu_manager.create_submenu(menu_data))
+    ui.show_menu_list(param.get_current_menu())
+    Refresh_Sub_Window()
+end
+
+-- エミネンス・レコード表示
+local function Handle_Eminence_Menu()
+    local player = windower.ffxi.get_player()
+    if not player or not player.id then
+        print('エラー: キャラクターIDが取得できません。')
+        return
+    end
+    local chara_id = player.id
+
+    http_handler.fetch_eminence_list(chara_id, function(success, data, error_message)
+        if success and data then
+            local mission_results = data.Mission or data.mission or {}
+            local face_results = data.Face or data.face or {}
+            local area_results = data.Area or data.area or {}
+
+            local function has_achieved(results)
+                for _, status in pairs(results) do
+                    if status == 1 then return true end
+                end
+                return false
+            end
+
+            local menu_items = {
+                { 
+                    id = 'EMINENCE_CAT_MISSION', 
+                    label = messages.eminence_menu.categories.mission,
+                    category_label = messages.eminence_menu.categories.mission,
+                    items_def = eminence_definitions.missions,
+                    results = mission_results,
+                    status = has_achieved(mission_results) and 1 or 0
+                },
+                { 
+                    id = 'EMINENCE_CAT_AREA', 
+                    label = messages.eminence_menu.categories.area,
+                    category_label = messages.eminence_menu.categories.area,
+                    items_def = {}, 
+                    results = area_results,
+                    status = has_achieved(area_results) and 1 or 0
+                },
+                { 
+                    id = 'EMINENCE_CAT_FACE', 
+                    label = messages.eminence_menu.categories.face,
+                    category_label = messages.eminence_menu.categories.face,
+                    items_def = eminence_definitions.faces,
+                    results = face_results,
+                    status = has_achieved(face_results) and 1 or 0
+                }
+            }
+
+            local menu_data = {
+                title = messages.eminence_menu.title,
+                items = menu_items
+            }
+            param.set_current_menu(menu_manager.create_submenu(menu_data))
+            ui.show_menu_list(param.get_current_menu())
+        else
+            print('Failed to load eminence list: ' .. (error_message or 'Unknown error'))
+        end
+    end)
+end
+
 -- 階層を辿ってレシピリストを取得・表示する (アイテム別)
 local function Fetch_And_Display_Item_Recipes(ah_id, min_lvl, max_lvl, title)
     local chara_id = param.get_chara_id() or windower.ffxi.get_player().id
@@ -426,6 +513,7 @@ function Close_Menu()
     ui.hide_menu_list()
     ui.hide_synthesis_details() -- サブウィンドウを非表示にする
     ui.hide_mission_details()    -- ミッションサブウィンドウも非表示
+    ui.hide_eminence_details()   -- エミネンスサブウィンドウも非表示
     ui.show_indicator() -- インジケーターを再表示
     menu_manager.exit_synthesis_sub_window_mode() -- サブウィンドウモードを終了
     if param.get_input_blocked() then
@@ -866,6 +954,8 @@ function Handle_Confirm()
                 Handle_Synthesis_Menu()
             elseif selected.func_name == 'Handle_Collection_Menu' then
                 Handle_Collection_Menu()
+            elseif selected.func_name == 'Handle_Eminence_Menu' then
+                Handle_Eminence_Menu()
             end
             return
         elseif selected.type == menu_definitions.types.FETCH then
@@ -931,6 +1021,22 @@ function Handle_Confirm()
     -- ミッション図鑑：個別ミッション（詳細表示）
     if tostring(selected.id):find('MISSION_ITEM_') then
         ui.show_mission_details(selected.mission_name, selected.status, selected.category_key)
+        return
+    end
+
+    -- エミネンス・レコード：カテゴリ選択
+    if tostring(selected.id):find('EMINENCE_CAT_') then
+        if selected.id == 'EMINENCE_CAT_AREA' then
+            -- エリアは未定義のため無視
+            return
+        end
+        Handle_Eminence_Category_Selection(selected.category_label, selected.items_def, selected.results)
+        return
+    end
+
+    -- エミネンス・レコード：個別項目（詳細表示）
+    if tostring(selected.id):find('EMINENCE_ITEM_') then
+        ui.show_eminence_details(selected.data, selected.status)
         return
     end
 
@@ -1097,6 +1203,7 @@ function Handle_Cancel()
         param.set_current_menu(menu_manager.go_back())
         ui.hide_synthesis_details()
         ui.hide_mission_details()
+        ui.hide_eminence_details()
         ui.show_menu_list(param.get_current_menu())
         Refresh_Sub_Window() -- 戻った後のアイテムに合わせてサブウィンドウを更新
     else
@@ -1224,6 +1331,8 @@ function Refresh_Sub_Window()
         end
     elseif id_str:find('MISSION_ITEM_') then
         ui.show_mission_details(selected.mission_name, selected.status, selected.category_key)
+    elseif id_str:find('EMINENCE_ITEM_') then
+        ui.show_eminence_details(selected.data, selected.status)
     end
 end
 
@@ -1298,21 +1407,61 @@ function Handle_Open_Recipe(selected_recipe_item)
     end)
 end
 
+-- エミネンス・レコードの達成状況をチェックして通知フラグを更新
+local function Check_Eminence_Notification(callback)
+    local player = windower.ffxi.get_player()
+    if not player or not player.id then
+        if callback then callback(false) end
+        return
+    end
+
+    http_handler.fetch_eminence_list(player.id, function(success, data)
+        local has_any_achieved = false
+        if success and data then
+            local categories = {'Mission', 'mission', 'Face', 'face', 'Area', 'area'}
+            for _, cat in ipairs(categories) do
+                if data[cat] then
+                    for _, status in pairs(data[cat]) do
+                        if status == 1 then
+                            has_any_achieved = true
+                            break
+                        end
+                    end
+                end
+                if has_any_achieved then break end
+            end
+        end
+        if callback then callback(has_any_achieved) end
+    end)
+end
+
 -- コマンド処理
 windower.register_event('addon command', function(command, ...) 
     command = command and command:lower() or 'help'
 
     if command == 'open' then
-        param.set_menu_open(true)
-        param.set_input_delay_frames(2)
-        param.set_current_menu(menu_manager.get_main_menu())
-        ui.hide_indicator() -- インジケーターを非表示
-        ui.show_menu_list(param.get_current_menu())
-        input_handler.block_game_input()
-        param.set_input_blocked(true)
+        Check_Eminence_Notification(function(has_achieved)
+            local main_menu = menu_manager.get_main_menu()
+            
+            -- メインメニュー内の「エミネンス・レコード」を探してstatusを更新
+            for _, item in ipairs(main_menu.items) do
+                if item.id == 'eminence' then
+                    item.status = has_achieved and 1 or 0
+                    break
+                end
+            end
 
-        -- 一時的にキーを無効化（ゲームのデフォルト動作を止める）
-        windower.send_command('keyboard_blockinput 1')
+            param.set_menu_open(true)
+            param.set_input_delay_frames(2)
+            param.set_current_menu(main_menu)
+            ui.hide_indicator() -- インジケーターを非表示
+            ui.show_menu_list(param.get_current_menu())
+            input_handler.block_game_input()
+            param.set_input_blocked(true)
+
+            -- 一時的にキーを無効化（ゲームのデフォルト動作を止める）
+            windower.send_command('keyboard_blockinput 1')
+        end)
     elseif command == 'close' then
         Close_Menu()
     elseif command == 'notify' then

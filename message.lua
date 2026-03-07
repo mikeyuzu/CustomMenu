@@ -35,6 +35,21 @@ local messages = {
         unknown = '？？？',
     },
 
+    eminence_status = {
+        not_achieved = '未達成',
+        achieved = '達成',
+        reward_received = '報酬受取済み',
+    },
+
+    eminence_menu = {
+        title = 'エミネンス・レコード',
+        categories = {
+            mission = 'ミッション',
+            area = 'エリア',
+            face = 'フェイス',
+        }
+    },
+
     synthesis_menu = {
         title = '合成',
         items = {

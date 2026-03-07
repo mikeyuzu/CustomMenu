@@ -1128,7 +1128,7 @@ function ui.create_error_dialog(message_text)
 end
 
 -- ミッション詳細表示
-function ui.show_mission_details(mission_name, status)
+function ui.show_mission_details(mission_name, status, category_key)
     if not mission_name then
         ui.hide_mission_details()
         return
@@ -1137,20 +1137,22 @@ function ui.show_mission_details(mission_name, status)
     local status_label = ""
     local description = ""
     local show_guidance = false
-    
+
+    local category_guidance = category_key and mission_definitions.mission_guidance[category_key]
+    local guidance_text = category_guidance and category_guidance[mission_name]
+
     if status == -1 then
         status_label = messages.mission_status.completed
         show_guidance = false
     elseif status == 0 then
         status_label = messages.mission_status.not_started
-        description = mission_definitions.mission_guidance[mission_name] or "ガイダンスが設定されていません。"
+        description = guidance_text or "ガイダンスが設定されていません。"
         show_guidance = true
     else
         status_label = messages.mission_status.in_progress
-        description = mission_definitions.mission_guidance[mission_name] or "進行中のためガイダンスはありません。"
+        description = guidance_text or "進行中のためガイダンスはありません。"
         show_guidance = true
     end
-
     local lines = {
         " 状態: " .. status_label,
     }

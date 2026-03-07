@@ -56,7 +56,7 @@ local synergy_category_generator = require('synergy_category_generator')
 local mission_definitions = require('mission_definitions')
 
 -- ミッションカテゴリ内の項目を表示
-local function Handle_Mission_Category_Selection(category_label, missions, mission_results)
+local function Handle_Mission_Category_Selection(category_label, missions, mission_results, category_key)
     local menu_items = {}
     local completed_count = 0
     local total_count = 0
@@ -82,7 +82,8 @@ local function Handle_Mission_Category_Selection(category_label, missions, missi
                 label = string.format("%s %d%%", chapter.title, percentage),
                 missions = chapter.missions,
                 mission_offset = total_count - chapter_total,
-                mission_results = mission_results
+                mission_results = mission_results,
+                category_key = category_key
             })
         end
     else
@@ -105,7 +106,8 @@ local function Handle_Mission_Category_Selection(category_label, missions, missi
                 id = 'MISSION_ITEM_' .. i,
                 label = label,
                 mission_name = m_name,
-                status = status
+                status = status,
+                category_key = category_key
             })
         end
     end
@@ -887,7 +889,7 @@ function Handle_Confirm()
     if tostring(selected.id):find('MISSION_CAT_') then
         local cat_key = selected.category_key
         local missions = mission_definitions.missions[cat_key]
-        Handle_Mission_Category_Selection(selected.category_label, missions, selected.mission_results)
+        Handle_Mission_Category_Selection(selected.category_label, missions, selected.mission_results, cat_key)
         Refresh_Sub_Window() -- 最初の項目の詳細を表示
         return
     end
@@ -898,6 +900,7 @@ function Handle_Confirm()
         local missions = selected.missions
         local offset = selected.mission_offset
         local mission_results = selected.mission_results or {}
+        local cat_key = selected.category_key
         
         for i, m_name in ipairs(missions) do
             local status = mission_results[offset + i] or 0
@@ -910,7 +913,8 @@ function Handle_Confirm()
                 id = 'MISSION_ITEM_' .. (offset + i),
                 label = label,
                 mission_name = m_name,
-                status = status
+                status = status,
+                category_key = cat_key
             })
         end
 
@@ -926,7 +930,7 @@ function Handle_Confirm()
 
     -- ミッション図鑑：個別ミッション（詳細表示）
     if tostring(selected.id):find('MISSION_ITEM_') then
-        ui.show_mission_details(selected.mission_name, selected.status)
+        ui.show_mission_details(selected.mission_name, selected.status, selected.category_key)
         return
     end
 
@@ -1219,7 +1223,7 @@ function Refresh_Sub_Window()
             ui.show_synthesis_details(selected.data)
         end
     elseif id_str:find('MISSION_ITEM_') then
-        ui.show_mission_details(selected.mission_name, selected.status)
+        ui.show_mission_details(selected.mission_name, selected.status, selected.category_key)
     end
 end
 

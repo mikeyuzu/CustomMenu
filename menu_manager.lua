@@ -269,6 +269,11 @@ function menu_manager.go_back()
     return current_menu
 end
 
+-- メニュー履歴を取得
+function menu_manager.get_history()
+    return menu_stack
+end
+
 -- 現在のメニュー取得
 function menu_manager.get_current_menu()
     return current_menu

@@ -47,7 +47,11 @@ local messages = {
             mission = 'ミッション',
             area = 'エリア',
             face = 'フェイス',
-        }
+        },
+        confirm_receive = '「%s」を受け取りますか？',
+        receive_success_delivery = '報酬を受け取りました。\nポストから受け取ってください。',
+        receive_success_key_item = '報酬を受け取りました。\nエリア移動後に反映されます。',
+        receive_success_magic = '報酬を受け取りました。\nエリア移動後に反映されます。',
     },
 
     synthesis_menu = {

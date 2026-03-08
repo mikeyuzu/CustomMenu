@@ -30,11 +30,49 @@ local state = {
     
         error_dialog_open = false, -- エラーダイアログが開いているか
         error_dialog_message = nil, -- エラーダイアログのメッセージ
-    }
-    
-    function param.get_has_notification()
+
+        eminence_confirm_dialog_open = false, -- エミネンス報酬受取確認ダイアログ
+        eminence_confirm_selected_item = nil, -- 選択されたエミネンス項目
+        eminence_confirm_selected_button = 'no', -- 選択されたボタン ('yes' or 'no')
+
+        eminence_data_cache = nil, -- エミネンス達成状況のキャッシュ
+        }
+
+        function param.get_has_notification()
         return state.has_notification
-    end
+        end
+
+        function param.get_eminence_data_cache()
+        return state.eminence_data_cache
+        end
+
+        function param.set_eminence_data_cache(data)
+        state.eminence_data_cache = data
+        end
+        function param.get_eminence_confirm_dialog_open()
+        return state.eminence_confirm_dialog_open
+        end
+
+        function param.set_eminence_confirm_dialog_open(open)
+        state.eminence_confirm_dialog_open = open
+        end
+
+        function param.get_eminence_confirm_selected_item()
+        return state.eminence_confirm_selected_item
+        end
+
+        function param.set_eminence_confirm_selected_item(item)
+        state.eminence_confirm_selected_item = item
+        end
+
+        function param.get_eminence_confirm_selected_button()
+        return state.eminence_confirm_selected_button
+        end
+
+        function param.set_eminence_confirm_selected_button(button)
+        state.eminence_confirm_selected_button = button
+        end
+
     function param.get_success_dialog_open()
         return state.success_dialog_open
     end

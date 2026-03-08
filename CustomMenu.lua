@@ -282,18 +282,29 @@ local function Handle_Collection_Menu()
 end
 
 -- エミネンス・レコード：カテゴリ別項目を表示
-local function Handle_Eminence_Category_Selection(category_label, items_def, eminence_results)
+local function Handle_Eminence_Category_Selection(category_label, items_def, eminence_results, category_id)
     local menu_items = {}
     
-    for i, item_def in pairs(items_def) do
-        local status = eminence_results[i + 1] or 0 -- APIは0始まりの配列かもしれないがLuaは1始まり
+    -- キーを数値順にソートして取得
+    local keys = {}
+    for i in pairs(items_def) do
+        table.insert(keys, i)
+    end
+    table.sort(keys)
+
+    for _, i in ipairs(keys) do
+        local item_def = items_def[i]
+        local status = eminence_results[i + 1] or 0 -- APIは0始まりの配列
         
         table.insert(menu_items, {
             id = 'EMINENCE_ITEM_' .. i,
             label = item_def.label,
             status = status,
             data = item_def,
-            is_eminence = true
+            is_eminence = true,
+            category_id = category_id,
+            item_index = i,
+            results = eminence_results -- キャッシュ更新用
         })
     end
 
@@ -304,6 +315,112 @@ local function Handle_Eminence_Category_Selection(category_label, items_def, emi
     param.set_current_menu(menu_manager.create_submenu(menu_data))
     ui.show_menu_list(param.get_current_menu())
     Refresh_Sub_Window()
+end
+
+-- 達成済み（status=1）の項目があるかチェックするヘルパー
+local function has_achieved(results)
+    if not results then return false end
+    for _, status in pairs(results) do
+        if status == 1 then return true end
+    end
+    return false
+end
+
+-- エミネンス報酬受取ダイアログを閉じる
+function Close_Eminence_Confirm_Dialog()
+    param.set_eminence_confirm_dialog_open(false)
+    param.set_eminence_confirm_selected_item(nil)
+    param.set_eminence_confirm_selected_button('no')
+    ui.destroy_eminence_confirm_dialog()
+end
+
+-- エミネンス報酬受取実行
+function Handle_Eminence_Reward_Receive()
+    local item = param.get_eminence_confirm_selected_item()
+    local chara_id = windower.ffxi.get_player().id
+
+    if not item or not chara_id then
+        print('ERROR: 報酬受取に必要な情報が不足しています。')
+        Close_Eminence_Confirm_Dialog()
+        return
+    end
+
+    http_handler.receive_eminence_reward(chara_id, item.category_id, item.item_index, function(success, data, error_message)
+        if success then
+            local destination = tonumber(data) or 0
+            local msg = messages.eminence_menu.receive_success_delivery
+            if destination == 1 then
+                msg = messages.eminence_menu.receive_success_key_item
+            elseif destination == 2 then
+                msg = messages.eminence_menu.receive_success_magic
+            end
+
+            -- 1. ローカルキャッシュの更新 (status=2: 受取済み)
+            if item.results then
+                item.results[item.item_index + 1] = 2
+            end
+
+            -- 2. 現在の表示項目を更新
+            item.status = 2
+            local current_menu = param.get_current_menu()
+            if current_menu and current_menu.items then
+                for _, m_item in ipairs(current_menu.items) do
+                    if m_item.id == item.id then
+                        m_item.status = 2
+                        break
+                    end
+                end
+            end
+
+            -- 3. 親メニュー（カテゴリ選択メニュー）の達成状態を再計算
+            local eminence_cache = param.get_eminence_data_cache()
+            if eminence_cache then
+                local mission_results = eminence_cache.Mission or eminence_cache.mission or {}
+                local face_results = eminence_cache.Face or eminence_cache.face or {}
+                local area_results = eminence_cache.Area or eminence_cache.area or {}
+
+                -- menu_managerの履歴からカテゴリメニューを探して更新
+                local history = menu_manager.get_history()
+                for _, menu in ipairs(history) do
+                    if menu.items then
+                        for _, m_item in ipairs(menu.items) do
+                            if m_item.id == 'EMINENCE_CAT_MISSION' then
+                                m_item.status = has_achieved(mission_results) and 1 or 0
+                            elseif m_item.id == 'EMINENCE_CAT_AREA' then
+                                m_item.status = has_achieved(area_results) and 1 or 0
+                            elseif m_item.id == 'EMINENCE_CAT_FACE' then
+                                m_item.status = has_achieved(face_results) and 1 or 0
+                            end
+                        end
+                    end
+                end
+
+                -- 4. メインメニューの通知状態も更新
+                local any_achieved = has_achieved(mission_results) or has_achieved(face_results) or has_achieved(area_results)
+                local main_menu = menu_manager.get_main_menu()
+                for _, m_item in ipairs(main_menu.items) do
+                    if m_item.id == 'eminence' then
+                        m_item.status = any_achieved and 1 or 0
+                        break
+                    end
+                end
+                ui.update_notification(any_achieved)
+            end
+
+            ui.create_success_dialog(msg)
+            param.set_success_dialog_open(true)
+            
+            -- UI更新（メニュー項目と詳細パネル）
+            ui.update_menu_display(param.get_current_menu())
+            ui.show_eminence_details(item.data, item.status)
+        else
+            print('ERROR: 報酬の受取に失敗しました: ' .. (error_message or '不明なエラー'))
+            param.set_error_dialog_open(true)
+            param.set_error_dialog_message("報酬の受取に失敗しました: " .. (error_message or "不明なエラー"))
+            ui.create_error_dialog(param.get_error_dialog_message())
+        end
+        Close_Eminence_Confirm_Dialog()
+    end)
 end
 
 -- エミネンス・レコード表示
@@ -317,22 +434,18 @@ local function Handle_Eminence_Menu()
 
     http_handler.fetch_eminence_list(chara_id, function(success, data, error_message)
         if success and data then
+            param.set_eminence_data_cache(data) -- キャッシュに保存
+
             local mission_results = data.Mission or data.mission or {}
             local face_results = data.Face or data.face or {}
             local area_results = data.Area or data.area or {}
-
-            local function has_achieved(results)
-                for _, status in pairs(results) do
-                    if status == 1 then return true end
-                end
-                return false
-            end
 
             local menu_items = {
                 { 
                     id = 'EMINENCE_CAT_MISSION', 
                     label = messages.eminence_menu.categories.mission,
                     category_label = messages.eminence_menu.categories.mission,
+                    category_id = 0,
                     items_def = eminence_definitions.missions,
                     results = mission_results,
                     status = has_achieved(mission_results) and 1 or 0
@@ -341,6 +454,7 @@ local function Handle_Eminence_Menu()
                     id = 'EMINENCE_CAT_AREA', 
                     label = messages.eminence_menu.categories.area,
                     category_label = messages.eminence_menu.categories.area,
+                    category_id = 1,
                     items_def = {}, 
                     results = area_results,
                     status = has_achieved(area_results) and 1 or 0
@@ -349,6 +463,7 @@ local function Handle_Eminence_Menu()
                     id = 'EMINENCE_CAT_FACE', 
                     label = messages.eminence_menu.categories.face,
                     category_label = messages.eminence_menu.categories.face,
+                    category_id = 2,
                     items_def = eminence_definitions.faces,
                     results = face_results,
                     status = has_achieved(face_results) and 1 or 0
@@ -1036,7 +1151,15 @@ function Handle_Confirm()
 
     -- エミネンス・レコード：個別項目（詳細表示）
     if tostring(selected.id):find('EMINENCE_ITEM_') then
-        ui.show_eminence_details(selected.data, selected.status)
+        if selected.status == 1 then
+            -- 達成済み、未受取の場合 -> 確認ダイアログ
+            param.set_eminence_confirm_dialog_open(true)
+            param.set_eminence_confirm_selected_item(selected)
+            param.set_eminence_confirm_selected_button('no')
+            ui.create_eminence_confirm_dialog(selected.label)
+        else
+            ui.show_eminence_details(selected.data, selected.status)
+        end
         return
     end
 
@@ -1543,6 +1666,28 @@ windower.register_event('keyboard', function(dik, down, flags, blocked)
         return true -- 他の入力をブロック
     end
 
+    -- エミネンス報酬受取確認ダイアログが開いている場合の処理
+    if param.get_eminence_confirm_dialog_open() then
+        local selected_button = param.get_eminence_confirm_selected_button()
+        if action == 'left' or action == 'right' then
+            if selected_button == 'no' then
+                param.set_eminence_confirm_selected_button('yes')
+            else
+                param.set_eminence_confirm_selected_button('no')
+            end
+            ui.update_eminence_confirm_dialog('buttons')
+        elseif action == 'confirm' then
+            if selected_button == 'yes' then
+                Handle_Eminence_Reward_Receive()
+            else
+                Close_Eminence_Confirm_Dialog()
+            end
+        elseif action == 'cancel' then
+            Close_Eminence_Confirm_Dialog()
+        end
+        return true
+    end
+
     -- エラーダイアログが開いている場合の処理 (追加)
     if param.get_error_dialog_open() then
         if action == 'confirm' or action == 'cancel' then
@@ -1557,19 +1702,30 @@ windower.register_event('keyboard', function(dik, down, flags, blocked)
             ui.destroy_success_dialog()
             param.set_success_dialog_open(false)
 
-            -- 在庫を再フェッチしてメニューを更新
-            local chara_id = param.get_chara_id()
-            if chara_id then
-                http_handler.fetch_synergy_inventory(chara_id, function(fetch_success, data, error_message)
-                    if fetch_success and data then
-                        Refresh_Menu_After_Inventory_Update(data)
-                    else
-                        print('ERROR: シナジーインベントリの再フェッチに失敗しました: ' .. (error_message or '不明なエラー'))
-                        Close_Menu()
-                    end
-                end)
-            else
-                Close_Menu() -- chara_idがなければメニューを閉じる
+            -- 在庫を再フェッチしてメニューを更新 (合成または引き出しの場合のみ)
+            local current_menu = param.get_current_menu()
+            local is_synthesis_related = false
+            if current_menu then
+                if current_menu.id == "ITEM_LIST_MENU" or 
+                   (current_menu.items and #current_menu.items > 0 and 
+                    (tostring(current_menu.items[1].id):find('RECIPE_ITEM_') or 
+                     tostring(current_menu.items[1].id):find('ITEM_SELECTED_'))) then
+                    is_synthesis_related = true
+                end
+            end
+
+            if is_synthesis_related then
+                local chara_id = param.get_chara_id()
+                if chara_id then
+                    http_handler.fetch_synergy_inventory(chara_id, function(fetch_success, data, error_message)
+                        if fetch_success and data then
+                            Refresh_Menu_After_Inventory_Update(data)
+                        else
+                            print('ERROR: シナジーインベントリの再フェッチに失敗しました: ' .. (error_message or '不明なエラー'))
+                            Close_Menu()
+                        end
+                    end)
+                end
             end
         end
         return true -- 他の入力をブロック

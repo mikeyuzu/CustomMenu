@@ -481,6 +481,39 @@ function http_handler.fetch_mission_list(chara_id, callback)
     end)()
 end
 
+-- エミネンス・レコード報酬受取API呼び出し
+function http_handler.receive_eminence_reward(chara_id, category, item_id, callback)
+    local params = {
+        charaId = chara_id,
+        category = category,
+        item = item_id
+    }
+    local query_string = build_query_string(params)
+    local request_url = config.base_url .. '/ReceiveEminenceRecordReward?' .. query_string
+
+    coroutine.wrap(function()
+        local success, data_string, status_code, error_message = http_handler.custom_request(request_url, 'GET')
+        local data = nil
+
+        if success then
+            local ok, decoded_data = pcall(json_decode_func, data_string)
+            if ok then
+                data = decoded_data
+            else
+                -- 数値のみが返る場合もあるので tonumber も試す
+                data = tonumber(data_string)
+                if data then
+                    success = true
+                else
+                    success = false
+                    error_message = "JSON decode error for receive eminence reward: " .. tostring(data_string)
+                end
+            end
+        end
+        callback(success, data, error_message)
+    end)()
+end
+
 -- レシピ解放API呼び出し
 function http_handler.open_recipe(chara_id, recipe_id, callback)
     local params = {

@@ -36,11 +36,31 @@ local state = {
         eminence_confirm_selected_button = 'no', -- 選択されたボタン ('yes' or 'no')
 
         eminence_data_cache = nil, -- エミネンス達成状況のキャッシュ
-        }
 
-        function param.get_has_notification()
-        return state.has_notification
-        end
+        -- ナビゲーションウィンドウ状態
+        navigation_last_info = {
+            id = nil,
+            zone = nil,
+            map_id = nil,
+            coordinates = nil
+        },
+        navigation_previous_info = {
+            id = 0,
+            zone = 0,
+            map_id = 0,
+            coordinates = "(?_?)"
+        },
+        navigation_last_message = nil,
+}
+
+function param.get_navigation_last_info() return state.navigation_last_info end
+function param.get_navigation_previous_info() return state.navigation_previous_info end
+function param.get_navigation_last_message() return state.navigation_last_message end
+function param.set_navigation_last_message(msg) state.navigation_last_message = msg end
+
+function param.get_has_notification()
+return state.has_notification
+end
 
         function param.get_eminence_data_cache()
         return state.eminence_data_cache

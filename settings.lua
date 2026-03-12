@@ -26,6 +26,16 @@ local defaults = {
         confirm = 0x1C,
         cancel = 0x01,
         menu = 0x38
+    },
+
+    -- ナビゲーションウィンドウ設定 (MissionNavを踏襲)
+    navigation = {
+        pos = {x = 1500, y = 400},
+        bg = {alpha = 200, red = 0, green = 0, blue = 0},
+        text = {size = 12, font = 'MS Gothic', alpha = 255, red = 255, green = 255, blue = 255},
+        flags = {bold = true, draggable = true},
+        update_interval = 1,
+        enabled = true
     }
 }
 

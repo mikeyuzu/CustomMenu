@@ -1,6 +1,7 @@
 local texts = require('texts')
 local messages = require('message')
 local param = require('param')
+local settings_manager = require('settings')
 local mission_definitions = require('mission_definitions')
 local ui = {}
 
@@ -67,6 +68,9 @@ local mission_detail_panel_texts = {}
 local mission_detail_panel_background = nil
 local cursor_highlight_background_sub = nil
 
+-- ナビゲーションウィンドウ用
+local navigation_text = nil
+
 -- 文字列の表示幅（半角換算）を計算するヘルパー関数
 local function _get_display_width(text)
     if not text then return 0 end
@@ -98,6 +102,13 @@ end
 function ui.initialize()
     indicator_text = texts.new(messages.menu_title, settings.indicator)
     indicator_text:show()
+
+    -- ナビゲーションウィンドウ初期化
+    local nav_settings = settings_manager.get('navigation')
+    if nav_settings and nav_settings.enabled then
+        navigation_text = texts.new('${content}', nav_settings)
+        navigation_text:show()
+    end
 end
 
 -- クリーンアップ
@@ -111,6 +122,7 @@ function ui.cleanup()
     if cursor_highlight_background then cursor_highlight_background:destroy(); cursor_highlight_background = nil end
     if description_text then description_text:destroy(); description_text = nil end
     if cursor_highlight_background_sub then cursor_highlight_background_sub:destroy(); cursor_highlight_background_sub = nil end
+    if navigation_text then navigation_text:destroy(); navigation_text = nil end
     ui.hide_synthesis_details()
     ui.hide_mission_details()
 end
@@ -136,6 +148,17 @@ function ui.hide_menu_list()
     if cursor_highlight_background then cursor_highlight_background:hide() end
     if description_text then description_text:hide() end
 end
+
+-- ナビゲーション更新
+function ui.update_navigation(content)
+    if navigation_text then
+        navigation_text.content = content
+        navigation_text:show()
+    end
+end
+
+function ui.show_navigation() if navigation_text then navigation_text:show() end end
+function ui.hide_navigation() if navigation_text then navigation_text:hide() end end
 
 -- メニュー表示内容更新
 function ui.update_menu_display(menu_data)
@@ -300,7 +323,9 @@ function ui.show_synthesis_details(recipe)
         local sy = cy.y
         table.insert(rl, string.format("%s %s(%d)", pfx, item.name, item.quantity or 1))
         cy.y = cy.y + lh
-        for _, l in ipairs((item.description or messages.synthesis_menu.not_infomation):split('\n')) do
+        ---@type any
+        local disc = item.description or messages.synthesis_menu.not_infomation
+        for _, l in ipairs(disc:split('\n')) do
             table.insert(rl, " " .. l); cy.y = cy.y + lh
         end
         table.insert(nq_hq_l, { y=sy, height=cy.y-sy, item=item, type=pfx })
@@ -393,8 +418,10 @@ function ui.update_withdrawal_dialog(ut)
     if not param.get_dialog_open() then return end
     if ut == 'quantity' and quantity_text_obj then
         local item = param.get_dialog_item()
-        local mq = math.min(item.quantity, item.stackSize)
-        quantity_text_obj:text(string.format('個数 %d/%d (上下で変更)', param.get_dialog_withdraw_quantity(), mq))
+        if item ~= nil then
+            local mq = math.min(item.quantity, item.stackSize)
+            quantity_text_obj:text(string.format('個数 %d/%d (上下で変更)', param.get_dialog_withdraw_quantity(), mq))
+        end
     elseif ut == 'buttons' then update_dialog_buttons() end
 end
 
@@ -535,11 +562,21 @@ function ui.create_error_dialog(msg)
 end
 
 function ui.show_mission_details(name, status, category_key)
-    if not name then ui.hide_mission_details(); return end
+    if not name then
+        ui.hide_mission_details()
+        return
+    end
     local sl = (status == -1) and messages.mission_status.completed or (status == 0 and messages.mission_status.not_started or messages.mission_status.in_progress)
     local l = { " 状態: " .. sl }
+    ---@type any
     local gui = category_key and mission_definitions.mission_guidance[category_key] and mission_definitions.mission_guidance[category_key][name]
-    if status ~= -1 and gui then table.insert(l, ""); table.insert(l, "--- ガイダンス ---"); for _, ln in ipairs(gui:split('\n')) do table.insert(l, " " .. ln) end end
+    if status ~= -1 and gui then
+        table.insert(l, "")
+        table.insert(l, "--- ガイダンス ---")
+        for _, ln in ipairs(gui:split('\n')) do
+            table.insert(l, " " .. ln)
+        end
+    end
     mission_detail_panel_background = _update_panel(settings.mission_detail_panel, mission_detail_panel_texts, mission_detail_panel_background, l, 'left')
 end
 function ui.hide_mission_details() mission_detail_panel_background = _update_panel(settings.mission_detail_panel, mission_detail_panel_texts, mission_detail_panel_background, nil) end

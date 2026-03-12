@@ -514,6 +514,22 @@ function http_handler.receive_eminence_reward(chara_id, category, item_id, callb
     end)()
 end
 
+-- ナビゲーションメッセージ取得API呼び出し (GetMessage)
+function http_handler.fetch_navigation_message(params, callback)
+    local query_string = build_query_string(params)
+    local request_url = config.base_url .. '/GetMessage?' .. query_string
+
+    coroutine.wrap(function()
+        local success, data_string, status_code, error_message = http_handler.custom_request(request_url, 'GET')
+        if success then
+            -- GetMessage は JSON ではなくプレーンテキストを返す想定 (MissionNav の実装に合わせる)
+            callback(true, data_string)
+        else
+            callback(false, nil, error_message)
+        end
+    end)()
+end
+
 -- レシピ解放API呼び出し
 function http_handler.open_recipe(chara_id, recipe_id, callback)
     local params = {

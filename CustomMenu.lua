@@ -3,6 +3,8 @@ _addon.author = 'Developer'
 _addon.version = '1.0.0'
 _addon.commands = {'cmenu'}
 
+local socket = require("socket")
+
 -- ================================================================
 -- ログファイルへの出力設定 (ここから追加)
 -- ================================================================
@@ -55,6 +57,108 @@ local menu_definitions = require('menu_definitions')
 local synergy_category_generator = require('synergy_category_generator')
 local mission_definitions = require('mission_definitions')
 local eminence_definitions = require('eminence_definitions')
+
+-- ナビゲーションウィンドウ用の状態
+local last_nav_update = os.clock()
+
+-- キャラクター情報取得 (MissionNavを踏襲)
+local function getCharacterInfo()
+    local player = windower.ffxi.get_player()
+    local info = windower.ffxi.get_info()
+    local map = windower.ffxi.get_map_data()
+    local pos = windower.ffxi.get_position()
+
+    if player and info and pos then
+        return player.name, player.id, info.zone, map, pos
+    else
+        return nil, nil, nil, nil, nil
+    end
+end
+
+-- ナビゲーション情報の有効性チェック
+local function isValidNavInfo(zone, map_id, coordinates)
+    return zone and zone ~= "N/A" and
+           map_id and map_id ~= "N/A" and
+           coordinates and coordinates ~= "N/A"
+end
+
+-- ナビゲーション情報変更チェック
+local function hasNavInfoChanged(zone, map_id)
+    local last_info = param.get_navigation_last_info()
+    return last_info.zone ~= zone or
+           last_info.map_id ~= map_id
+end
+
+local function hasNavInfoChangedFull(zone, map_id, coordinates)
+    local last_info = param.get_navigation_last_info()
+    return last_info.zone ~= zone or
+           last_info.map_id ~= map_id or
+           last_info.coordinates ~= coordinates
+end
+
+-- ナビゲーション情報更新
+local function updateNavigationInfo()
+    local name, id, zone, map_id, coordinates = getCharacterInfo()
+    local last_info = param.get_navigation_last_info()
+    local previous_info = param.get_navigation_previous_info()
+
+    if name then
+        if isValidNavInfo(zone, map_id, coordinates) and hasNavInfoChanged(zone, map_id) then
+            if last_info.zone and isValidNavInfo(last_info.zone, last_info.map_id, last_info.coordinates) then
+                previous_info.id = last_info.id
+                previous_info.zone = last_info.zone
+                previous_info.map_id = last_info.map_id
+                previous_info.coordinates = last_info.coordinates
+            end
+        end
+
+        if isValidNavInfo(zone, map_id, coordinates) and hasNavInfoChangedFull(zone, map_id, coordinates) then
+            last_info.name = name
+            last_info.id = id
+            last_info.zone = zone
+            last_info.map_id = map_id
+            last_info.coordinates = coordinates
+        end
+    end
+end
+
+-- ナビゲーション表示更新
+local function updateNavigationDisplay()
+    local player = windower.ffxi.get_player()
+    if not player then return end
+    if player.status == 4 then
+        ui.hide_navigation()
+        return
+    end
+
+    local last_info = param.get_navigation_last_info()
+    local previous_info = param.get_navigation_previous_info()
+
+    local message_params = {
+        charaId = last_info.id,
+        zoneId = last_info.zone,
+        mapId = last_info.map_id,
+        coordinates = last_info.coordinates,
+        preZoneId = previous_info.zone,
+        preMapId = previous_info.map_id,
+        preCoordinates = previous_info.coordinates
+    }
+
+    http_handler.fetch_navigation_message(message_params, function(success, message)
+        if success and message ~= param.get_navigation_last_message() then
+            ui.update_navigation(message)
+            param.set_navigation_last_message(message)
+        end
+    end)
+end
+
+-- ナビゲーション情報変更チェック(prerender用)
+local function checkNavigationInfoChange()
+    local name, id, zone, map_id, coordinates = getCharacterInfo()
+    if name and isValidNavInfo(zone, map_id, coordinates) and hasNavInfoChangedFull(zone, map_id, coordinates) then
+        updateNavigationInfo()
+    end
+end
 
 -- ミッションカテゴリ内の項目を表示
 local function Handle_Mission_Category_Selection(category_label, missions, mission_results, category_key)
@@ -1839,8 +1943,40 @@ windower.register_event('prerender', function()
     if not player then
         return
     end
+
+    -- 定期更新 (1秒ごと)
+    local current_time = os.clock()
+    local update_interval = settings.get('navigation.update_interval') or 1
+    if current_time - last_nav_update >= update_interval then
+        checkNavigationInfoChange()
+        updateNavigationDisplay()
+        last_nav_update = current_time
+    end
+
     if player.status == 4 then
         -- イベント中/カットシーン中
         return
+    end
+end)
+
+-- ログイン時
+windower.register_event('login', function()
+    socket.sleep(2)
+    updateNavigationDisplay()
+end)
+
+-- ゾーン変更時
+windower.register_event('zone change', function()
+    socket.sleep(1)
+    updateNavigationInfo()
+    updateNavigationDisplay()
+end)
+
+-- ステータス変更時（カットシーン等での非表示制御）
+windower.register_event('status change', function(new_status, old_status)
+    if new_status == 4 then
+        ui.hide_navigation()
+    else
+        ui.show_navigation()
     end
 end)

@@ -101,13 +101,13 @@ end
 -- 初期化
 function ui.initialize()
     indicator_text = texts.new(messages.menu_title, settings.indicator)
-    indicator_text:show()
+    -- indicator_text:show() -- ログイン後に表示を制御するため、ここではshowしない
 
     -- ナビゲーションウィンドウ初期化
     local nav_settings = settings_manager.get('navigation')
     if nav_settings and nav_settings.enabled then
         navigation_text = texts.new('${content}', nav_settings)
-        navigation_text:show()
+        -- navigation_text:show() -- ログイン後に表示を制御するため、ここではshowしない
     end
 end
 
@@ -588,5 +588,31 @@ function ui.show_eminence_details(item, status)
     mission_detail_panel_background = _update_panel(settings.mission_detail_panel, mission_detail_panel_texts, mission_detail_panel_background, l, 'left')
 end
 function ui.hide_eminence_details() ui.hide_mission_details() end
+
+-- 全てのUIを非表示にする（イベント中など）
+function ui.hide_all()
+    ui.hide_indicator()
+    ui.hide_menu_list()
+    ui.hide_navigation()
+    ui.hide_synthesis_details()
+    ui.hide_mission_details()
+end
+
+-- 現在の状態に基づいてUIを表示する
+function ui.refresh_visibility()
+    -- インジケーターは設定に関わらず基本表示（メニューが開いていない場合）
+    if not param.get_menu_open() then
+        ui.show_indicator()
+    else
+        -- メニューが開いている場合はメニューリストを表示
+        ui.show_menu_list(param.get_current_menu())
+    end
+
+    -- ナビゲーション
+    local nav_settings = settings_manager.get('navigation')
+    if nav_settings and nav_settings.enabled then
+        ui.show_navigation()
+    end
+end
 
 return ui

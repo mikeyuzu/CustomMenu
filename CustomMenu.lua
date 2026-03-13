@@ -1934,6 +1934,7 @@ windower.register_event('keyboard', function(dik, down, flags, blocked)
 end)
 
 -- フレーム更新
+local last_visibility_state = false
 windower.register_event('prerender', function()
     if param.get_input_delay_frames() > 0 then
         param.set_input_delay_frames(param.get_input_delay_frames() - 1)
@@ -1941,6 +1942,10 @@ windower.register_event('prerender', function()
 
     local player = windower.ffxi.get_player()
     if not player then
+        if last_visibility_state then
+            ui.hide_all()
+            last_visibility_state = false
+        end
         return
     end
 
@@ -1953,8 +1958,21 @@ windower.register_event('prerender', function()
         last_nav_update = current_time
     end
 
-    if player.status == 4 then
-        -- イベント中/カットシーン中
+    -- 表示制御の統合管理
+    local info = windower.ffxi.get_info()
+    local should_be_visible = (player.status ~= 4) and (not info or not info.menu_open)
+
+    if should_be_visible ~= last_visibility_state then
+        if not should_be_visible then
+            ui.hide_all()
+        else
+            ui.refresh_visibility()
+        end
+        last_visibility_state = should_be_visible
+    end
+
+    if not should_be_visible then
+        -- イベント中/カットシーン中/メニューオープン中
         return
     end
 end)
@@ -1975,8 +1993,8 @@ end)
 -- ステータス変更時（カットシーン等での非表示制御）
 windower.register_event('status change', function(new_status, old_status)
     if new_status == 4 then
-        ui.hide_navigation()
+        ui.hide_all()
     else
-        ui.show_navigation()
+        ui.refresh_visibility()
     end
 end)

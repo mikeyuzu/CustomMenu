@@ -51,12 +51,15 @@ local state = {
             coordinates = "(?_?)"
         },
         navigation_last_message = nil,
+        navigation_exclamation = 0,
 }
 
 function param.get_navigation_last_info() return state.navigation_last_info end
 function param.get_navigation_previous_info() return state.navigation_previous_info end
 function param.get_navigation_last_message() return state.navigation_last_message end
 function param.set_navigation_last_message(msg) state.navigation_last_message = msg end
+function param.get_navigation_exclamation() return state.navigation_exclamation end
+function param.set_navigation_exclamation(val) state.navigation_exclamation = val end
 
 function param.get_has_notification()
 return state.has_notification

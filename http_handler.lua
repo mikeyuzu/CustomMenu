@@ -5,10 +5,6 @@ local http_handler = {}
 local url = require("socket.url")
 
 -- Embedded simple JSON parser starts here
--- Source: https://github.com/rxi/json.lua/blob/master/json.lua (Simplified for decode only)
--- json.lua: A simple JSON parser for Lua.
--- (Removed encode part as it's not needed here)
-
 local json = {}
 local pairs = pairs
 local tostring = tostring
@@ -20,16 +16,13 @@ local string = string
 local table = table
 
 local decode
-
 local _M = {}
-
 local parse_value
 local parse_object
 local parse_array
 local parse_string
 local parse_number
 local parse_literal
-
 local lex
 
 -- Lexer
@@ -95,7 +88,7 @@ function lex(str)
             advance(1)
           elseif esc_char == 'u' then
             -- Handle unicode escapes (e.g., \uXXXX)
-            local hex = match("u([%x%x%x%x])")
+            local hex = match("u(%x%x%x%x)")
             if hex then
               str_val = str_val .. string.char(tonumber(hex, 16))
             else
@@ -118,7 +111,7 @@ function lex(str)
       add_token("number", tonumber(num_str))
     elseif char == 't' and match("true") then add_token("boolean", true)
     elseif char == 'f' and match("false") then add_token("boolean", false)
-    elseif char == 'n' and match("nil") then add_token("nil", nil)
+    elseif char == 'n' and match("null") then add_token("nil", nil)
     else
       error("Unexpected character: " .. char .. " at position " .. pos)
     end
@@ -198,6 +191,7 @@ end
 
 parse_value = function()
   local token = peek()
+  if not token then error("Unexpected end of input") end
   if token.type == "string" then return parse_string()
   elseif token.type == "number" then return parse_number()
   elseif token.type == "boolean" or token.type == "nil" then return parse_literal()
@@ -208,12 +202,15 @@ parse_value = function()
 end
 
 function json.decode(str)
-  tokens = lex(str)
-  current_token_index = 1
-  return parse_value()
+  if not str or str == "" then return nil end
+  local ok, res = pcall(function()
+    tokens = lex(str)
+    current_token_index = 1
+    return parse_value()
+  end)
+  if ok then return res else return nil, res end
 end
 
--- The global json_decode_func will now point to this embedded parser's decode function
 local json_decode_func = json.decode
 
 -- HTTP通信設定
@@ -224,12 +221,9 @@ local config = {
 }
 
 --- URLのクエリ文字列を組み立てるヘルパー関数
- -- @param params (table) キーと値のペアを持つテーブル
- -- @return (string) "key1=value1&key2=value2" のような形式の文字列
 local function build_query_string(params)
     local parts = {}
     for key, value in pairs(params) do
-        -- 値をURLエンコードする
         table.insert(parts, key .. "=" .. url.escape(tostring(value)))
     end
     return table.concat(parts, "&")
@@ -246,23 +240,22 @@ end
 -- HTTP リクエスト実行 (汎用メニューデータ用)
 function http_handler.request_menu(menu_id)
     local request_url = config.base_url .. '/' .. menu_id
-
     local success, data_string, status_code, error_message = http_handler.custom_request(request_url, 'GET')
     local data = nil
 
     if success then
-        local ok, decoded_data = pcall(json_decode_func, data_string)
-        if ok then
+        local decoded_data, decode_error = json_decode_func(data_string)
+        if decoded_data ~= nil or data_string == "null" then
             data = decoded_data
         else
             success = false
-            error_message = "JSON decode error for menu '" .. menu_id .. "': " .. tostring(decoded_data)
+            error_message = "JSON decode error for menu '" .. menu_id .. "': " .. tostring(decode_error)
         end
     end
     return success, data, error_message
 end
 
--- ダミーデータ生成 (開発・テスト用) -- request_menuからは呼ばれない
+-- ダミーデータ生成 (開発・テスト用)
 function http_handler.get_dummy_data(menu_id)
     local data_map = {
         eminence = {
@@ -282,29 +275,8 @@ function http_handler.get_dummy_data(menu_id)
                 { id = 'collection_equipment', label = '装備図鑑' },
                 { id = 'collection_areas', label = 'エリア図鑑' }
             }
-        },
-        quest = {
-            title = 'クエスト',
-            items = {
-                { id = 'quest_sandoria', label = 'サンドリア' },
-                { id = 'quest_bastok', label = 'バストゥーク' },
-                { id = 'quest_windurst', label = 'ウィンダス' },
-                { id = 'quest_jeuno', label = 'ジュノ' },
-                { id = 'quest_other', label = 'その他' }
-            }
-        },
-        mission = {
-            title = 'ミッション',
-            items = {
-                { id = 'mission_sandoria', label = 'サンドリア' },
-                { id = 'mission_bastok', label = 'バストゥーク' },
-                { id = 'mission_windurst', label = 'ウィンダス' },
-                { id = 'mission_zilart', label = 'ジラート' },
-                { id = 'mission_promathia', label = 'プロマシア' }
-            }
         }
     }
-
     return data_map[menu_id]
 end
 
@@ -317,14 +289,13 @@ function http_handler.fetch_synergy_inventory(chara_id, callback)
     coroutine.wrap(function()
         local success, data_string, status_code, error_message = http_handler.custom_request(request_url, 'GET')
         local data = nil
-
         if success then
-            local ok, decoded_data = pcall(json_decode_func, data_string)
-            if ok then
+            local decoded_data, decode_error = json_decode_func(data_string)
+            if decoded_data ~= nil or data_string == "null" then
                 data = decoded_data
             else
                 success = false
-                error_message = "JSON decode error for synergy inventory: " .. tostring(decoded_data)
+                error_message = "JSON decode error for synergy inventory: " .. tostring(decode_error)
             end
         end
         callback(success, data, error_message)
@@ -333,79 +304,55 @@ end
 
 -- シナジーインベントリアイテム削除API呼び出し
 function http_handler.remove_synergy_inventory_item(chara_id, item_id, sub_id, usenum, quantity, callback)
-    local params = {
-        charaId = chara_id,
-        itemId = item_id,
-        subId = sub_id,
-        usenum = usenum,
-        quantity = quantity
-    }
+    local params = { charaId = chara_id, itemId = item_id, subId = sub_id, usenum = usenum, quantity = quantity }
     local query_string = build_query_string(params)
     local request_url = config.base_url .. '/RemoveSynergyInventoryItem?' .. query_string
 
     coroutine.wrap(function()
         local success, data_string, status_code, error_message = http_handler.custom_request(request_url, 'GET')
-        -- RemoveSynergyInventoryItem APIは成功/失敗のみを返すため、データは期待しない
-        -- 成功/失敗メッセージをcallbackに渡す
-        local message = nil
-        if success then
-            message = "アイテムの引き出しに成功しました。"
-        else
-            message = "アイテムの引き出しに失敗しました: " .. (error_message or "不明なエラー")
-        end
+        local message = success and "アイテムの引き出しに成功しました。" or ("アイテムの引き出しに失敗しました: " .. (error_message or "不明なエラー"))
         callback(success, message)
     end)()
 end
 
 -- 合成レシピ取得API呼び出し
 function http_handler.fetch_synthesis_recipes(chara_id, guild_id, rank, callback)
-    local params = {
-        charaId = chara_id,
-        guildId = guild_id,
-        rank = rank
-    }
+    local params = { charaId = chara_id, guildId = guild_id, rank = rank }
     local query_string = build_query_string(params)
     local request_url = config.base_url .. '/GetSynthesisRecipes?' .. query_string
 
     coroutine.wrap(function()
         local success, data_string, status_code, error_message = http_handler.custom_request(request_url, 'GET')
         local data = nil
-
         if success then
-            local ok, decoded_data = pcall(json_decode_func, data_string)
-            if ok then
+            local decoded_data, decode_error = json_decode_func(data_string)
+            if decoded_data ~= nil or data_string == "null" then
                 data = decoded_data
             else
                 success = false
-                error_message = "JSON decode error for synthesis recipes: " .. tostring(decoded_data)
+                error_message = "JSON decode error for synthesis recipes: " .. tostring(decode_error)
             end
         end
         callback(success, data, error_message)
     end)()
 end
 
--- アイテム別合成レシピ取得API呼び出し (仮実装)
+-- アイテム別合成レシピ取得API呼び出し
 function http_handler.fetch_synthesis_recipes_by_item(chara_id, auction_house_id, min_level, max_level, callback)
-    local params = {
-        charaId = chara_id,
-        auctionHouseId = auction_house_id,
-        minLevel = min_level,
-        maxLevel = max_level
-    }
+    local params = { charaId = chara_id, auctionHouseId = auction_house_id, minLevel = min_level, maxLevel = max_level }
     local query_string = build_query_string(params)
     local request_url = config.base_url .. '/GetSynthesisRecipesByItem?' .. query_string
 
     coroutine.wrap(function()
         local success, data_string, status_code, error_message = http_handler.custom_request(request_url, 'GET')
         local data = nil
-
         if success then
-            local ok, decoded_data = pcall(json_decode_func, data_string)
-            if ok then
+            local decoded_data, decode_error = json_decode_func(data_string)
+            if decoded_data ~= nil or data_string == "null" then
                 data = decoded_data
             else
                 success = false
-                error_message = "JSON decode error for item synthesis recipes: " .. tostring(decoded_data)
+                error_message = "JSON decode error for item synthesis recipes: " .. tostring(decode_error)
             end
         end
         callback(success, data, error_message)
@@ -421,14 +368,13 @@ function http_handler.fetch_collection_list(chara_id, callback)
     coroutine.wrap(function()
         local success, data_string, status_code, error_message = http_handler.custom_request(request_url, 'GET')
         local data = nil
-
         if success then
-            local ok, decoded_data = pcall(json_decode_func, data_string)
-            if ok then
+            local decoded_data, decode_error = json_decode_func(data_string)
+            if decoded_data ~= nil or data_string == "null" then
                 data = decoded_data
             else
                 success = false
-                error_message = "JSON decode error for collection list: " .. tostring(decoded_data)
+                error_message = "JSON decode error for collection list: " .. tostring(decode_error)
             end
         end
         callback(success, data, error_message)
@@ -444,14 +390,13 @@ function http_handler.fetch_eminence_list(chara_id, callback)
     coroutine.wrap(function()
         local success, data_string, status_code, error_message = http_handler.custom_request(request_url, 'GET')
         local data = nil
-
         if success then
-            local ok, decoded_data = pcall(json_decode_func, data_string)
-            if ok then
+            local decoded_data, decode_error = json_decode_func(data_string)
+            if decoded_data ~= nil or data_string == "null" then
                 data = decoded_data
             else
                 success = false
-                error_message = "JSON decode error for eminence record list: " .. tostring(decoded_data)
+                error_message = "JSON decode error for eminence record list: " .. tostring(decode_error)
             end
         end
         callback(success, data, error_message)
@@ -467,14 +412,13 @@ function http_handler.fetch_mission_list(chara_id, callback)
     coroutine.wrap(function()
         local success, data_string, status_code, error_message = http_handler.custom_request(request_url, 'GET')
         local data = nil
-
         if success then
-            local ok, decoded_data = pcall(json_decode_func, data_string)
-            if ok then
+            local decoded_data, decode_error = json_decode_func(data_string)
+            if decoded_data ~= nil or data_string == "null" then
                 data = decoded_data
             else
                 success = false
-                error_message = "JSON decode error for mission list: " .. tostring(decoded_data)
+                error_message = "JSON decode error for mission list: " .. tostring(decode_error)
             end
         end
         callback(success, data, error_message)
@@ -483,30 +427,22 @@ end
 
 -- エミネンス・レコード報酬受取API呼び出し
 function http_handler.receive_eminence_reward(chara_id, category, item_id, callback)
-    local params = {
-        charaId = chara_id,
-        category = category,
-        item = item_id
-    }
+    local params = { charaId = chara_id, category = category, item = item_id }
     local query_string = build_query_string(params)
     local request_url = config.base_url .. '/ReceiveEminenceRecordReward?' .. query_string
 
     coroutine.wrap(function()
         local success, data_string, status_code, error_message = http_handler.custom_request(request_url, 'GET')
         local data = nil
-
         if success then
-            local ok, decoded_data = pcall(json_decode_func, data_string)
-            if ok then
+            local decoded_data, decode_error = json_decode_func(data_string)
+            if decoded_data ~= nil or data_string == "null" then
                 data = decoded_data
             else
-                -- 数値のみが返る場合もあるので tonumber も試す
                 data = tonumber(data_string)
-                if data then
-                    success = true
-                else
+                if not data then
                     success = false
-                    error_message = "JSON decode error for receive eminence reward: " .. tostring(data_string)
+                    error_message = "JSON decode error for eminence reward: " .. tostring(decode_error)
                 end
             end
         end
@@ -514,16 +450,27 @@ function http_handler.receive_eminence_reward(chara_id, category, item_id, callb
     end)()
 end
 
--- ナビゲーションメッセージ取得API呼び出し (GetMessage)
-function http_handler.fetch_navigation_message(params, callback)
-    local query_string = build_query_string(params)
-    local request_url = config.base_url .. '/GetMessage?' .. query_string
+-- カスタムメニュー情報取得API呼び出し (GetCustomMenuInfo)
+function http_handler.fetch_custom_menu_info(params, callback)
+    local full_params = {}
+    for k, v in pairs(params) do full_params[k] = v end
+    full_params.clip1Category = 0; full_params.clip1Id = 0
+    full_params.clip2Category = 0; full_params.clip2Id = 0
+    full_params.clip3Category = 0; full_params.clip3Id = 0
+    full_params.clip4Category = 0; full_params.clip4Id = 0
+
+    local query_string = build_query_string(full_params)
+    local request_url = config.base_url .. '/GetCustomMenuInfo?' .. query_string
 
     coroutine.wrap(function()
         local success, data_string, status_code, error_message = http_handler.custom_request(request_url, 'GET')
         if success then
-            -- GetMessage は JSON ではなくプレーンテキストを返す想定 (MissionNav の実装に合わせる)
-            callback(true, data_string)
+            local decoded_data, decode_error = json_decode_func(data_string)
+            if decoded_data ~= nil or data_string == "null" then
+                callback(true, decoded_data)
+            else
+                callback(false, nil, "JSON decode error in GetCustomMenuInfo: " .. tostring(decode_error))
+            end
         else
             callback(false, nil, error_message)
         end
@@ -532,72 +479,50 @@ end
 
 -- レシピ解放API呼び出し
 function http_handler.open_recipe(chara_id, recipe_id, callback)
-    local params = {
-        charaId = chara_id,
-        id = recipe_id
-    }
+    local params = { charaId = chara_id, id = recipe_id }
     local query_string = build_query_string(params)
     local request_url = config.base_url .. '/OpenRecipes?' .. query_string
 
     coroutine.wrap(function()
         local success, data_string, status_code, error_message = http_handler.custom_request(request_url, 'GET')
-        local message = nil
-        if success then
-            message = "レシピを解放しました。" -- 成功時のメッセージ
-        else
-            message = "レシピの解放に失敗しました: " .. (error_message or "不明なエラー") -- 失敗時のメッセージ
-        end
+        local message = success and "レシピを解放しました。" or ("レシピの解放に失敗しました: " .. (error_message or "不明なエラー"))
         callback(success, message)
     end)()
 end
 
 -- アイテム合成API呼び出し
 function http_handler.synthesize_item(chara_id, skill_id, recipe_id, item_id, sub_id, quantity, callback)
-    local params = {
-        charaId = chara_id,
-        skillId = skill_id,
-        recipeId = recipe_id,
-        itemId = item_id,
-        subId = sub_id,
-        quantity = quantity
-    }
+    local params = { charaId = chara_id, skillId = skill_id, recipeId = recipe_id, itemId = item_id, subId = sub_id, quantity = quantity }
     local query_string = build_query_string(params)
     local request_url = config.base_url .. '/SynthesizeItem?' .. query_string
 
     coroutine.wrap(function()
         local success, data_string, status_code, error_message = http_handler.custom_request(request_url, 'GET')
         local data = nil
-
         if success then
-            local ok, decoded_data = pcall(json_decode_func, data_string)
-            if ok then
+            local decoded_data, decode_error = json_decode_func(data_string)
+            if decoded_data ~= nil or data_string == "null" then
                 data = decoded_data
             else
                 success = false
-                error_message = "JSON decode error for synthesize item: " .. tostring(decoded_data)
+                error_message = "JSON decode error for synthesize item: " .. tostring(decode_error)
             end
         end
         callback(success, data, error_message)
     end)()
 end
 
--- カスタムHTTPリクエスト実装例
--- 実際に使用する場合はこちらを拡張
+-- カスタムHTTPリクエスト実装
 function http_handler.custom_request(url_str, method, headers, body)
-    local http_socket = require('socket.http')
-    local ltn12 = require('ltn12')
-
     local response_body_parts = {}
     local sink = ltn12.sink.table(response_body_parts)
-
-    local res, code, response_headers, status_line = http_socket.request({
+    local res, code, response_headers, status_line = http.request({
         url = url_str,
         method = method or 'GET',
         headers = headers or {},
         source = body and ltn12.source.string(body) or nil,
         sink = sink
     })
-
     if code == 200 then
         return true, table.concat(response_body_parts), code, nil
     else

@@ -130,10 +130,18 @@ end
 function ui.show_indicator() if indicator_text then indicator_text:show() end end
 function ui.hide_indicator() if indicator_text then indicator_text:hide() end end
 
-function ui.update_notification(has_notification)
+function ui.update_indicator(exclamation_mark)
     if indicator_text then
-        indicator_text:text(has_notification and messages.notification_with_icon or messages.notification_text)
+        local text = messages.menu_title
+        if exclamation_mark == 1 then
+            text = '\\cs(255,255,0)' .. text .. '!\\cr'
+        end
+        indicator_text:text(text)
     end
+end
+
+function ui.update_notification(has_notification)
+    ui.update_indicator(has_notification and 1 or 0)
 end
 
 function ui.show_menu_list(menu_data)

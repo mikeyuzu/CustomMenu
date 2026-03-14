@@ -398,6 +398,20 @@ function Close_Dialog()
     param.set_dialog_open(false); param.set_dialog_item(nil); param.set_dialog_withdraw_quantity(0); param.set_dialog_selected_button('cancel'); ui.destroy_withdrawal_dialog()
 end
 
+function Handle_Withdraw()
+    local item = param.get_dialog_item(); local chara_id = param.get_chara_id(); local usenum = param.get_dialog_withdraw_quantity()
+    if not item or not chara_id or usenum <= 0 then Close_Dialog(); return end
+    http_handler.remove_synergy_inventory_item(chara_id, item.id, item.subId, usenum, item.quantity, function(success, message)
+        Close_Dialog()
+        if success then
+            ui.create_success_dialog(string.format(messages.retrieval_success, item.name)); param.set_success_dialog_open(true)
+            http_handler.fetch_synergy_inventory(chara_id, function(s, d) if s then Refresh_Menu_After_Inventory_Update(d) end end)
+        else
+            print('ERROR: ' .. item.name .. ' の引き出しに失敗しました: ' .. (message or '不明'))
+        end
+    end)
+end
+
 function Close_Craft_Confirm_Dialog()
     param.set_craft_confirm_dialog_open(false); param.set_craft_confirm_item_name(nil); param.set_craft_confirm_selected_button('no'); param.set_craft_confirm_recipe_data(nil); param.set_craft_confirm_nq_hq_index(0); ui.destroy_craft_confirm_dialog()
 end
@@ -468,12 +482,56 @@ end)
 windower.register_event('keyboard', function(dik, down, flags, blocked)
     if param.get_input_delay_frames() > 0 or not down then return true end
     local action = input_handler.process_key(dik)
-    if param.get_dialog_open() or param.get_craft_confirm_dialog_open() or param.get_error_dialog_open() or param.get_success_dialog_open() then
-        if action == 'confirm' or action == 'cancel' then
-            if param.get_dialog_open() then Close_Dialog() elseif param.get_craft_confirm_dialog_open() then Close_Craft_Confirm_Dialog() elseif param.get_error_dialog_open() then Close_Error_Dialog() elseif param.get_success_dialog_open() then ui.destroy_success_dialog(); param.set_success_dialog_open(false) end
+    
+    if param.get_dialog_open() or param.get_craft_confirm_dialog_open() or param.get_eminence_confirm_dialog_open() or param.get_error_dialog_open() or param.get_success_dialog_open() then
+        if action == 'confirm' then
+            if param.get_dialog_open() then
+                if param.get_dialog_selected_button() == 'withdraw' then Handle_Withdraw() else Close_Dialog() end
+            elseif param.get_craft_confirm_dialog_open() then
+                if param.get_craft_confirm_selected_button() == 'yes' then Handle_Craft_Synthesis() end
+                Close_Craft_Confirm_Dialog()
+            elseif param.get_eminence_confirm_dialog_open() then
+                if param.get_eminence_confirm_selected_button() == 'yes' then Handle_Eminence_Reward_Receive() else Close_Eminence_Confirm_Dialog() end
+            elseif param.get_error_dialog_open() then
+                Close_Error_Dialog()
+            elseif param.get_success_dialog_open() then
+                ui.destroy_success_dialog(); param.set_success_dialog_open(false)
+            end
+        elseif action == 'cancel' then
+            if param.get_dialog_open() then Close_Dialog()
+            elseif param.get_craft_confirm_dialog_open() then Close_Craft_Confirm_Dialog()
+            elseif param.get_eminence_confirm_dialog_open() then Close_Eminence_Confirm_Dialog()
+            elseif param.get_error_dialog_open() then Close_Error_Dialog()
+            elseif param.get_success_dialog_open() then ui.destroy_success_dialog(); param.set_success_dialog_open(false) end
+        elseif action == 'left' or action == 'right' then
+            if param.get_dialog_open() then
+                param.set_dialog_selected_button(param.get_dialog_selected_button() == 'cancel' and 'withdraw' or 'cancel')
+                ui.update_withdrawal_dialog('buttons')
+            elseif param.get_craft_confirm_dialog_open() then
+                param.set_craft_confirm_selected_button(param.get_craft_confirm_selected_button() == 'no' and 'yes' or 'no')
+                ui.update_craft_confirm_dialog('buttons')
+            elseif param.get_eminence_confirm_dialog_open() then
+                param.set_eminence_confirm_selected_button(param.get_eminence_confirm_selected_button() == 'no' and 'yes' or 'no')
+                ui.update_eminence_confirm_dialog('buttons')
+            end
+        elseif action == 'up' or action == 'down' then
+            if param.get_dialog_open() then
+                local item = param.get_dialog_item()
+                if item then
+                    local current = param.get_dialog_withdraw_quantity()
+                    local limit = math.min(item.quantity, item.stackSize or 99)
+                    if action == 'up' then
+                        param.set_dialog_withdraw_quantity(current < limit and current + 1 or 1)
+                    else
+                        param.set_dialog_withdraw_quantity(current > 1 and current - 1 or limit)
+                    end
+                    ui.update_withdrawal_dialog('quantity')
+                end
+            end
         end
         return true
     end
+
     if not param.get_menu_open() then return false end
     if action == 'up' then menu_manager.move_cursor(-1); ui.update_menu_display(param.get_current_menu()); Refresh_Sub_Window()
     elseif action == 'down' then menu_manager.move_cursor(1); ui.update_menu_display(param.get_current_menu()); Refresh_Sub_Window()

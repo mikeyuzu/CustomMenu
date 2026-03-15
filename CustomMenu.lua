@@ -446,7 +446,7 @@ function Handle_Confirm()
     elseif selected.type == menu_definitions.types.FETCH then Handle_Generic_Fetch(selected.id); return end
     if selected.id == 'collection_item_1' then Handle_Mission_Encyclopedia(); return end
     if tostring(selected.id):find('MISSION_CAT_') then Handle_Mission_Category_Selection(selected.category_label, mission_definitions.missions[selected.category_key], selected.mission_results, selected.category_key); Refresh_Sub_Window(); return end
-    if tostring(selected.id):find('EMINENCE_CAT_') then Handle_Eminence_Category_Selection(selected.category_label, selected.items_def, selected.results); return end
+    if tostring(selected.id):find('EMINENCE_CAT_') then Handle_Eminence_Category_Selection(selected.category_label, selected.items_def, selected.results, selected.category_id); return end
     if tostring(selected.id):find('EMINENCE_ITEM_') then if selected.status == 1 then param.set_eminence_confirm_dialog_open(true); param.set_eminence_confirm_selected_item(selected); ui.create_eminence_confirm_dialog(selected.label) else ui.show_eminence_details(selected.data, selected.status) end; return end
     if tostring(selected.id):find('RECIPE_ITEM_') then menu_manager.enter_synthesis_sub_window_mode(selected.isOpen == 1 and 'full' or 'materials_only'); ui.show_synthesis_details(selected.data); return end
     if selected.id == 'synthesis' then Handle_Synthesis_Menu() elseif selected.id == 'synthesis_storage' then Handle_Synthesis_Storage() else Handle_Generic_Fetch(selected.id) end

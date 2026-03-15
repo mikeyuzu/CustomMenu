@@ -142,6 +142,17 @@ local function updateNavigationDisplay()
             if excl ~= param.get_navigation_exclamation() then
                 ui.update_indicator(excl)
                 param.set_navigation_exclamation(excl)
+                
+                -- メインメニューが開いている場合はエミネンスのビックリマークを更新
+                local current = param.get_current_menu()
+                if param.get_menu_open() and current and current.id == 'MAIN_MENU' then
+                    for _, item in ipairs(current.items) do
+                        if item.id == 'eminence' then
+                            item.status = (excl == 1 or param.get_has_notification()) and 1 or 0
+                        end
+                    end
+                    ui.update_menu_display(current)
+                end
             end
         end
     end)
@@ -475,7 +486,21 @@ windower.register_event('addon command', function(command, ...)
     if command == 'open' then
         local main = menu_manager.get_main_menu(); param.set_menu_open(true); param.set_input_delay_frames(2); param.set_current_menu(main); ui.hide_indicator(); ui.show_menu_list(main); input_handler.block_game_input(); param.set_input_blocked(true); windower.send_command('keyboard_blockinput 1')
     elseif command == 'close' then Close_Menu()
-    elseif command == 'notify' then param.set_has_notification(not param.get_has_notification()); ui.update_notification(param.get_has_notification())
+    elseif command == 'notify' then 
+        param.set_has_notification(not param.get_has_notification())
+        local has_notif = param.get_has_notification() or (param.get_navigation_exclamation() == 1)
+        ui.update_notification(has_notif)
+        
+        -- メインメニューが開いている場合はエミネンスのビックリマークを更新
+        local current = param.get_current_menu()
+        if param.get_menu_open() and current and current.id == 'MAIN_MENU' then
+            for _, item in ipairs(current.items) do
+                if item.id == 'eminence' then
+                    item.status = has_notif and 1 or 0
+                end
+            end
+            ui.update_menu_display(current)
+        end
     end
 end)
 

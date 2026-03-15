@@ -18,12 +18,25 @@ end
 -- メインメニュー取得
 function menu_manager.get_main_menu()
     local definition = menu_definitions.main_menu
+    local has_notif = param.get_has_notification() or (param.get_navigation_exclamation() == 1)
+    
+    local items = {}
+    for i, item in ipairs(definition.items) do
+        local new_item = {}
+        for k, v in pairs(item) do new_item[k] = v end
+        if new_item.id == 'eminence' then
+            new_item.status = has_notif and 1 or 0
+        end
+        items[i] = new_item
+    end
+
     current_menu = {
         title = definition.title,
-        items = definition.items,
+        items = items,
         cursor = 1,
         scroll_pos = 1,
-        page_size = 10
+        page_size = 10,
+        id = 'MAIN_MENU'
     }
     menu_stack = {}
     return current_menu

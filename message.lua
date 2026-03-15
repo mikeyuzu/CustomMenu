@@ -28,6 +28,20 @@ local messages = {
         }
     },
 
+    magic_menu = {
+        title = '魔法図鑑',
+        items = {
+            white = '白魔法',
+            black = '黒魔法',
+            song = '歌',
+            ninjutsu = '忍術',
+            summoning = '召喚魔法',
+            blue = '青魔法',
+            geomancy = '風水魔法',
+            trust = 'フェイス',
+        }
+    },
+
     mission_status = {
         completed = 'クリア済み',
         in_progress = '進行中',

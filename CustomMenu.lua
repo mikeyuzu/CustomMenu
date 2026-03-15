@@ -231,6 +231,34 @@ local function Handle_Mission_Encyclopedia()
     end)
 end
 
+-- 魔法図鑑表示
+local function Handle_Magic_Encyclopedia()
+    local player = windower.ffxi.get_player()
+    if not player or not player.id then return end
+    http_handler.fetch_magic_collection_list(player.id, function(success, data, error_message)
+        if success and data then
+            local labels = {
+                messages.magic_menu.items.white,
+                messages.magic_menu.items.black,
+                messages.magic_menu.items.song,
+                messages.magic_menu.items.ninjutsu,
+                messages.magic_menu.items.summoning,
+                messages.magic_menu.items.blue,
+                messages.magic_menu.items.geomancy,
+                messages.magic_menu.items.trust
+            }
+            local menu_items = {}
+            for i, val in ipairs(data) do
+                local percentage = tonumber(val) / 100
+                table.insert(menu_items, { id = 'magic_item_' .. i, label = string.format("%s %0.2f%%", labels[i] or "不明", percentage), description = "" })
+            end
+            local magic_menu_data = { title = messages.magic_menu.title, items = menu_items }
+            param.set_current_menu(menu_manager.create_submenu(magic_menu_data))
+            ui.show_menu_list(param.get_current_menu())
+        end
+    end)
+end
+
 function Handle_Synthesis_Menu()
     local synthesis_menu_data = menu_manager.get_synthesis_menu_data()
     param.set_current_menu(menu_manager.create_submenu(synthesis_menu_data))
@@ -456,6 +484,7 @@ function Handle_Confirm()
         local f = _G[selected.func_name]; if f then f() end; return
     elseif selected.type == menu_definitions.types.FETCH then Handle_Generic_Fetch(selected.id); return end
     if selected.id == 'collection_item_1' then Handle_Mission_Encyclopedia(); return end
+    if selected.id == 'collection_item_5' then Handle_Magic_Encyclopedia(); return end
     if tostring(selected.id):find('MISSION_CAT_') then Handle_Mission_Category_Selection(selected.category_label, mission_definitions.missions[selected.category_key], selected.mission_results, selected.category_key); Refresh_Sub_Window(); return end
     if tostring(selected.id):find('EMINENCE_CAT_') then Handle_Eminence_Category_Selection(selected.category_label, selected.items_def, selected.results, selected.category_id); return end
     if tostring(selected.id):find('EMINENCE_ITEM_') then if selected.status == 1 then param.set_eminence_confirm_dialog_open(true); param.set_eminence_confirm_selected_item(selected); ui.create_eminence_confirm_dialog(selected.label) else ui.show_eminence_details(selected.data, selected.status) end; return end

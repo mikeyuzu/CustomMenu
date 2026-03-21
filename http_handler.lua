@@ -403,6 +403,28 @@ function http_handler.fetch_magic_collection_list(chara_id, callback)
     end)()
 end
 
+-- 魔法グループ別図鑑リスト取得API呼び出し
+function http_handler.fetch_magic_group_collection_list(chara_id, list_id, callback)
+    local params = { charaId = chara_id, listId = list_id }
+    local query_string = build_query_string(params)
+    local request_url = config.base_url .. '/GetMagicGroupCollectionList?' .. query_string
+
+    coroutine.wrap(function()
+        local success, data_string, status_code, error_message = http_handler.custom_request(request_url, 'GET')
+        local data = nil
+        if success then
+            local decoded_data, decode_error = json_decode_func(data_string)
+            if decoded_data ~= nil or data_string == "null" then
+                data = decoded_data
+            else
+                success = false
+                error_message = "JSON decode error for magic group collection list: " .. tostring(decode_error)
+            end
+        end
+        callback(success, data, error_message)
+    end)()
+end
+
 -- エミネンス・レコードリスト取得API呼び出し
 function http_handler.fetch_eminence_list(chara_id, callback)
     local params = { charaId = chara_id }

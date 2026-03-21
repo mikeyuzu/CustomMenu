@@ -3,6 +3,7 @@ local messages = require('message')
 local param = require('param')
 local settings_manager = require('settings')
 local mission_definitions = require('mission_definitions')
+local magic_definitions = require('magic_definitions')
 local ui = {}
 
 local dialog_width = 300
@@ -596,6 +597,95 @@ function ui.show_eminence_details(item, status)
     mission_detail_panel_background = _update_panel(settings.mission_detail_panel, mission_detail_panel_texts, mission_detail_panel_background, l, 'left')
 end
 function ui.hide_eminence_details() ui.hide_mission_details() end
+
+function ui.show_magic_details(magic_id, jobs, flag)
+    if not magic_id then ui.hide_magic_details(); return end
+    
+    local def = magic_definitions.magics[magic_id]
+    local name = def and def.name or "魔法ID:"..magic_id
+    local status = (flag == 1) and "習得済み" or "未習得"
+    
+    -- ジョブ名リスト (22ジョブ)
+    local job_names = {"戦","モ","白","黒","赤","シ","ナ","暗","獣","吟","狩","侍","忍","竜","召","青","コ","か","踊","学","風","剣"}
+    local level_strings = {}
+    
+    if type(jobs) == 'table' then
+        -- 詳細デバッグログ: テーブルの内容をすべて出力
+        local kv_pairs = {}
+        local min_key = 999
+        for k, v in pairs(jobs) do
+            local nk = tonumber(k)
+            if nk then
+                if nk < min_key then min_key = nk end
+                table.insert(kv_pairs, string.format("%s:%s", tostring(k), tostring(v)))
+            end
+        end
+
+        -- ジョブ情報の解析
+        for i = 0, #job_names do
+            -- API側が0開始なら jobs[0..21], 1開始なら jobs[1..22]
+            local job_idx = (min_key == 0) and i or (i + 1)
+            local val = jobs[job_idx] or jobs[tostring(job_idx)]
+            local level = tonumber(val)
+            
+            if level and level > 0 then
+                -- job_names は常に 1..22
+                local name_idx = i + 1
+                if job_names[name_idx] then
+                    table.insert(level_strings, job_names[name_idx] .. "Lv" .. level)
+                end
+            end
+        end
+    end
+    
+    local level_display = #level_strings > 0 and table.concat(level_strings, " ") or "習得不可"
+    -- ... (以下、説明や入手方法の表示処理は変更なし)
+
+    local l = {
+        " " .. name,
+        " 状態: " .. status,
+        " 習得レベル: " .. level_display,
+        "",
+        "--- 概要 ---",
+        " " .. (def and def.description or "情報がありません。"),
+        ""
+    }
+
+    local has_detail = false
+    if def then
+        local details = {
+            { key = "shop", label = "ショップ" },
+            { key = "quest", label = "クエスト報酬" },
+            { key = "drop", label = "モンスタードロップ" },
+            { key = "steal", label = "盗む" },
+            { key = "chest", label = "宝箱" },
+            { key = "mining", label = "採掘" },
+            { key = "content", label = "コンテンツ" },
+        }
+
+        for _, detail in ipairs(details) do
+            local val = def[detail.key]
+            if val and val ~= "" then
+                table.insert(l, "--- " .. detail.label .. " ---")
+                -- 複数行ある場合に対応
+                for line in val:gmatch("([^\n]+)") do
+                    table.insert(l, " " .. line)
+                end
+                table.insert(l, "")
+                has_detail = true
+            end
+        end
+    end
+
+    if not has_detail then
+        table.insert(l, "--- 入手方法 ---")
+        table.insert(l, " " .. (def and def.acquisition or "情報がありません。"))
+    end
+
+    mission_detail_panel_background = _update_panel(settings.mission_detail_panel, mission_detail_panel_texts, mission_detail_panel_background, l, 'left')
+end
+
+function ui.hide_magic_details() ui.hide_mission_details() end
 
 -- 全てのUIを非表示にする（イベント中など）
 function ui.hide_all()

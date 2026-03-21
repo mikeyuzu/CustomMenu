@@ -44,9 +44,127 @@ local menu_definitions = require('menu_definitions')
 local synergy_category_generator = require('synergy_category_generator')
 local mission_definitions = require('mission_definitions')
 local eminence_definitions = require('eminence_definitions')
+local magic_definitions = require('magic_definitions')
 
 -- ナビゲーションウィンドウ用の状態
 local last_nav_update = os.clock()
+
+-- キャッシュ用データ
+local magic_group_data_cache = {}
+
+-- 魔法図鑑表示
+local function Show_Magic_List_Menu(data, title)
+    local menu_items = {}
+    for _, info in ipairs(data) do
+        local magic_id = tonumber(info.Id or info.id)
+        local flag = tonumber(info.Flag or info.flag or 0)
+        local jobs = info.Jobs or info.jobs
+        
+        if magic_id then
+            local def = magic_definitions.magics[magic_id]
+            local label = def and def.name or ("魔法ID:" .. magic_id)
+            if flag == 0 then
+                label = "\\cs(128,128,128)" .. label .. "\\cr"
+            end
+            
+            table.insert(menu_items, { 
+                id = 'MAGIC_INFO_' .. magic_id, 
+                label = label, 
+                data = { Id = magic_id, Flag = flag, Jobs = jobs } 
+            })
+        end
+    end
+    local menu_data = { title = title or messages.magic_menu.title, items = menu_items }
+    param.set_current_menu(menu_manager.create_submenu(menu_data))
+    ui.show_menu_list(param.get_current_menu())
+end
+
+local function Handle_Magic_Level_Selection(group_index, level_min, level_max)
+    local data = magic_group_data_cache[group_index]
+    if not data then return end
+
+    local filtered = {}
+    for _, info in ipairs(data) do
+        -- MinLevelが取得できない、あるいは0の場合は、Lv1として扱い最初のグループに表示させる
+        local min_lvl = tonumber(info.MinLevel or info.minLevel) or 1
+        if min_lvl == 0 then min_lvl = 1 end
+        
+        if min_lvl >= level_min and min_lvl <= level_max then
+            table.insert(filtered, info)
+        end
+    end
+
+    local labels = {
+        messages.magic_menu.items.white,
+        messages.magic_menu.items.black,
+        messages.magic_menu.items.song,
+        messages.magic_menu.items.ninjutsu,
+        messages.magic_menu.items.summoning,
+        messages.magic_menu.items.blue,
+        messages.magic_menu.items.geomancy,
+        messages.magic_menu.items.trust
+    }
+    local title = string.format("%s (Lv%d-%d)", labels[group_index] or "", level_min, level_max)
+    Show_Magic_List_Menu(filtered, title)
+end
+
+local function Show_Magic_Level_Submenus(group_index, data)
+    magic_group_data_cache[group_index] = data
+    
+    -- デバッグログ: APIから取得したデータの統計
+    local unlearned_count = 0
+    for _, info in ipairs(data) do
+        local flag = info.Flag or info.flag or 0
+        if flag == 0 then unlearned_count = unlearned_count + 1 end
+    end
+
+    local menu_items = {
+        { id = 'MAGIC_LEVEL_' .. group_index .. '_1_10', label = "Lv1～Lv10", min = 1, max = 10 },
+        { id = 'MAGIC_LEVEL_' .. group_index .. '_11_20', label = "Lv11～Lv20", min = 11, max = 20 },
+        { id = 'MAGIC_LEVEL_' .. group_index .. '_21_30', label = "Lv21～Lv30", min = 21, max = 30 },
+        { id = 'MAGIC_LEVEL_' .. group_index .. '_31_40', label = "Lv31～Lv40", min = 31, max = 40 },
+        { id = 'MAGIC_LEVEL_' .. group_index .. '_41_50', label = "Lv41～Lv50", min = 41, max = 50 },
+        { id = 'MAGIC_LEVEL_' .. group_index .. '_51_60', label = "Lv51～Lv60", min = 51, max = 60 },
+        { id = 'MAGIC_LEVEL_' .. group_index .. '_61_70', label = "Lv61～Lv70", min = 61, max = 70 },
+        { id = 'MAGIC_LEVEL_' .. group_index .. '_71_80', label = "Lv71～Lv80", min = 71, max = 80 },
+        { id = 'MAGIC_LEVEL_' .. group_index .. '_81_90', label = "Lv81～Lv90", min = 81, max = 90 },
+        { id = 'MAGIC_LEVEL_' .. group_index .. '_91_99', label = "Lv91～Lv99", min = 91, max = 99 },
+    }
+    local labels = {
+        messages.magic_menu.items.white,
+        messages.magic_menu.items.black,
+        messages.magic_menu.items.song,
+        messages.magic_menu.items.ninjutsu,
+        messages.magic_menu.items.summoning,
+        messages.magic_menu.items.blue,
+        messages.magic_menu.items.geomancy,
+        messages.magic_menu.items.trust
+    }
+    local menu_data = { title = labels[group_index] or messages.magic_menu.title, items = menu_items }
+    param.set_current_menu(menu_manager.create_submenu(menu_data))
+    ui.show_menu_list(param.get_current_menu())
+end
+
+local function Handle_Magic_Group_Selection(group_id_str)
+    local group_index = tonumber(group_id_str:match('magic_item_(%d+)'))
+    if not group_index then return end
+
+    local chara_id = param.get_chara_id()
+    if not chara_id then return end
+
+    http_handler.fetch_magic_group_collection_list(chara_id, group_index - 1, function(success, data, error_message)
+        if success and data then
+            if group_index == 4 or group_index == 5 then -- Ninjutsu, Summoning
+                local labels = { [4]=messages.magic_menu.items.ninjutsu, [5]=messages.magic_menu.items.summoning }
+                Show_Magic_List_Menu(data, labels[group_index])
+            elseif group_index == 8 then -- Trust
+                Show_Magic_List_Menu(data, messages.magic_menu.items.trust)
+            else -- White, Black, Song, Blue, Geomancy
+                Show_Magic_Level_Submenus(group_index, data)
+            end
+        end
+    end)
+end
 
 -- キャラクター情報取得
 local function getCharacterInfo()
@@ -202,6 +320,7 @@ end
 local function Handle_Mission_Encyclopedia()
     local player = windower.ffxi.get_player()
     if not player or not player.id then return end
+    param.set_chara_id(player.id)
     http_handler.fetch_mission_list(player.id, function(success, data, error_message)
         if success and data then
             local menu_items = {}
@@ -235,6 +354,7 @@ end
 local function Handle_Magic_Encyclopedia()
     local player = windower.ffxi.get_player()
     if not player or not player.id then return end
+    param.set_chara_id(player.id)
     http_handler.fetch_magic_collection_list(player.id, function(success, data, error_message)
         if success and data then
             local labels = {
@@ -288,6 +408,7 @@ end
 function Handle_Collection_Menu()
     local player = windower.ffxi.get_player()
     if not player or not player.id then return end
+    param.set_chara_id(player.id)
     http_handler.fetch_collection_list(player.id, function(success, data, error_message)
         if success and data then
             local labels = { messages.collection_menu.items.mission, messages.collection_menu.items.quest, messages.collection_menu.items.item, messages.collection_menu.items.monster, messages.collection_menu.items.magic, messages.collection_menu.items.ws }
@@ -477,30 +598,83 @@ function Handle_Craft_Synthesis()
 end
 
 function Handle_Confirm()
-    local selected = menu_manager.get_selected_item(); if not selected then return end
+    local selected = menu_manager.get_selected_item()
+    if not selected then return end
+    
+    local id_str = tostring(selected.id)
+    
+    -- アクションタイプ別の処理
     if selected.type == menu_definitions.types.SUBMENU then
-        local def = menu_definitions.get_menu_by_id(selected.submenu_id); if def then param.set_current_menu(menu_manager.create_submenu(def)); ui.show_menu_list(param.get_current_menu()) end; return
+        local def = menu_definitions.get_menu_by_id(selected.submenu_id)
+        if def then 
+            param.set_current_menu(menu_manager.create_submenu(def))
+            ui.show_menu_list(param.get_current_menu()) 
+        end
+        return
     elseif selected.type == menu_definitions.types.FUNCTION then
-        local f = _G[selected.func_name]; if f then f() end; return
-    elseif selected.type == menu_definitions.types.FETCH then Handle_Generic_Fetch(selected.id); return end
-    if selected.id == 'collection_item_1' then Handle_Mission_Encyclopedia(); return end
-    if selected.id == 'collection_item_5' then Handle_Magic_Encyclopedia(); return end
-    if tostring(selected.id):find('MISSION_CAT_') then Handle_Mission_Category_Selection(selected.category_label, mission_definitions.missions[selected.category_key], selected.mission_results, selected.category_key); Refresh_Sub_Window(); return end
-    if tostring(selected.id):find('EMINENCE_CAT_') then Handle_Eminence_Category_Selection(selected.category_label, selected.items_def, selected.results, selected.category_id); return end
-    if tostring(selected.id):find('EMINENCE_ITEM_') then if selected.status == 1 then param.set_eminence_confirm_dialog_open(true); param.set_eminence_confirm_selected_item(selected); ui.create_eminence_confirm_dialog(selected.label) else ui.show_eminence_details(selected.data, selected.status) end; return end
-    if tostring(selected.id):find('RECIPE_ITEM_') then menu_manager.enter_synthesis_sub_window_mode(selected.isOpen == 1 and 'full' or 'materials_only'); ui.show_synthesis_details(selected.data); return end
-    if selected.id == 'synthesis' then Handle_Synthesis_Menu() elseif selected.id == 'synthesis_storage' then Handle_Synthesis_Storage() else Handle_Generic_Fetch(selected.id) end
+        local f = _G[selected.func_name]
+        if f then f() end
+        return
+    elseif selected.type == menu_definitions.types.FETCH then 
+        Handle_Generic_Fetch(selected.id)
+        return 
+    end
+
+    -- IDパターン別の処理
+    if id_str == 'collection_item_1' then 
+        Handle_Mission_Encyclopedia()
+    elseif id_str == 'collection_item_5' then 
+        Handle_Magic_Encyclopedia()
+    elseif id_str:find('magic_item_') then 
+        Handle_Magic_Group_Selection(id_str)
+    elseif id_str:find('MAGIC_LEVEL_') then
+        local g, mi, ma = id_str:match('MAGIC_LEVEL_(%d+)_(%d+)_(%d+)')
+        if g and mi and ma then 
+            Handle_Magic_Level_Selection(tonumber(g), tonumber(mi), tonumber(ma)) 
+        end
+    elseif id_str:find('MAGIC_INFO_') then
+        -- 魔法個別情報は詳細を表示するだけで、決定キーでは何もしない
+        -- (既にRefresh_Sub_Windowで表示されているはず)
+        return
+    elseif id_str:find('MISSION_CAT_') then 
+        Handle_Mission_Category_Selection(selected.category_label, mission_definitions.missions[selected.category_key], selected.mission_results, selected.category_key)
+        Refresh_Sub_Window()
+    elseif id_str:find('EMINENCE_CAT_') then 
+        Handle_Eminence_Category_Selection(selected.category_label, selected.items_def, selected.results, selected.category_id)
+    elseif id_str:find('EMINENCE_ITEM_') then 
+        if selected.status == 1 then 
+            param.set_eminence_confirm_dialog_open(true)
+            param.set_eminence_confirm_selected_item(selected)
+            ui.create_eminence_confirm_dialog(selected.label) 
+        else 
+            ui.show_eminence_details(selected.data, selected.status) 
+        end
+    elseif id_str:find('RECIPE_ITEM_') then 
+        menu_manager.enter_synthesis_sub_window_mode(selected.isOpen == 1 and 'full' or 'materials_only')
+        ui.show_synthesis_details(selected.data)
+    elseif id_str == 'synthesis' then 
+        Handle_Synthesis_Menu() 
+    elseif id_str == 'synthesis_storage' then 
+        Handle_Synthesis_Storage() 
+    else 
+        -- 未定義のIDの場合は汎用フェッチを試みる
+        Handle_Generic_Fetch(selected.id) 
+    end
 end
 
 function Handle_Cancel()
-    if param.get_dialog_open() then Close_Dialog() elseif menu_manager.can_go_back() then param.set_current_menu(menu_manager.go_back()); ui.hide_synthesis_details(); ui.hide_mission_details(); ui.hide_eminence_details(); ui.show_menu_list(param.get_current_menu()); Refresh_Sub_Window() else Close_Menu() end
+    if param.get_dialog_open() then Close_Dialog() elseif menu_manager.can_go_back() then param.set_current_menu(menu_manager.go_back()); ui.hide_synthesis_details(); ui.hide_mission_details(); ui.hide_eminence_details(); ui.hide_magic_details(); ui.show_menu_list(param.get_current_menu()); Refresh_Sub_Window() else Close_Menu() end
 end
 
 function Refresh_Sub_Window()
     local selected = menu_manager.get_selected_item(); if not selected then return end
-    ui.hide_synthesis_details(); ui.hide_mission_details(); local id_str = tostring(selected.id)
+    ui.hide_synthesis_details(); ui.hide_mission_details(); ui.hide_eminence_details(); ui.hide_magic_details(); local id_str = tostring(selected.id)
     if id_str:find('RECIPE_ITEM_') then if selected.data then ui.show_synthesis_details(selected.data) end
     elseif id_str:find('MISSION_ITEM_') then ui.show_mission_details(selected.mission_name, selected.status, selected.category_key)
+    elseif id_str:find('MAGIC_INFO_') then 
+        if selected.data then
+            ui.show_magic_details(selected.data.Id, selected.data.Jobs, selected.data.Flag)
+        end
     elseif id_str:find('EMINENCE_ITEM_') then ui.show_eminence_details(selected.data, selected.status) end
 end
 

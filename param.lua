@@ -402,4 +402,15 @@ param.rank_ids = {
     GRANDMASTER = 10,
 }
 
+param.magic_disp_ids = {
+    WHITE = 0,          -- 白魔法
+    BLACK = 1,          -- 黒魔法
+    SONG = 2,           -- 歌
+    NINJUTSU = 3,       -- 忍術
+    SUMMONING = 4,      -- 召喚魔法
+    BLUE = 5,           -- 青魔法
+    GEOMANCY = 6,       -- 風水魔法
+    TRUST = 7,          -- フェイス
+}
+
 return param

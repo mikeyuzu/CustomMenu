@@ -665,11 +665,31 @@ function ui.show_magic_details(magic_id, jobs, flag)
 
         for _, detail in ipairs(details) do
             local val = def[detail.key]
-            if val and val ~= "" then
+            local has_content = false
+            if type(val) == 'string' and val ~= "" then
+                has_content = true
+            elseif type(val) == 'table' and #val > 0 then
+                has_content = true
+            end
+
+            if has_content then
                 table.insert(l, "--- " .. detail.label .. " ---")
-                -- 複数行ある場合に対応
-                for line in val:gmatch("([^\n]+)") do
-                    table.insert(l, " " .. line)
+                -- 複数行またはテーブルの場合に対応
+                if type(val) == 'table' then
+                    for _, entry in ipairs(val) do
+                        if type(entry) == 'table' then
+                            local line = ""
+                            if entry.zone then line = line .. "[" .. entry.zone .. "] " end
+                            if entry.mob then line = line .. entry.mob end
+                            if line ~= "" then table.insert(l, " " .. line) end
+                        else
+                            table.insert(l, " " .. tostring(entry))
+                        end
+                    end
+                else
+                    for line in val:gmatch("([^\n]+)") do
+                        table.insert(l, " " .. line)
+                    end
                 end
                 table.insert(l, "")
                 has_detail = true

@@ -152,7 +152,7 @@ function synergy_category_generator.generate_menu_data(synergy_inventory_items, 
         -- 現在のメニューIDに基づいて、category_definitions内の適切な子メニューを見つける
         local function find_menu_node(nodes, target_id)
             for _, node in ipairs(nodes) do
-                if node.id == target_id then
+                if tostring(node.id) == tostring(target_id) then
                     return node
                 elseif node.children then
                     local found = find_menu_node(node.children, target_id)

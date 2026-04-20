@@ -398,8 +398,9 @@ function Handle_Synthesis_Storage()
         if success and data then
             param.set_synergy_inventory_cache(data)
             local generated_menu = synergy_category_generator.generate_menu_data(data, 'main')
+            generated_menu.id = 'synthesis_storage'
             if #generated_menu.items == 0 and generated_menu.empty_message then
-                local empty_menu_data = { title = generated_menu.title, items = {{ id = 'empty_message', label = generated_menu.empty_message, description = ""}}, cursor = 1, scroll_pos = 1, page_size = 1 }
+                local empty_menu_data = { title = generated_menu.title, items = {{ id = 'empty_message', label = generated_menu.empty_message, description = ""}}, cursor = 1, scroll_pos = 1, page_size = 1, id = 'synthesis_storage' }
                 param.set_current_menu(menu_manager.create_submenu(empty_menu_data))
                 ui.show_menu_list(param.get_current_menu())
             else

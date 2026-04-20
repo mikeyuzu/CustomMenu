@@ -152,24 +152,37 @@ function synergy_category_generator.generate_menu_data(synergy_inventory_items, 
         -- 現在のメニューIDに基づいて、category_definitions内の適切な子メニューを見つける
         local function find_menu_node(nodes, target_id)
             for _, node in ipairs(nodes) do
-                if node.id == target_id and node.children then
-                    return node.children, node.label
+                if node.id == target_id then
+                    return node
                 elseif node.children then
-                    local found_children, found_label = find_menu_node(node.children, target_id)
-                    if found_children then
-                        return found_children, found_label
+                    local found = find_menu_node(node.children, target_id)
+                    if found then
+                        return found
                     end
                 end
             end
-            return nil, nil
+            return nil
         end
-        local found_menu, found_label = find_menu_node(category_definitions.main, current_menu_id)
-        if found_menu and found_label then
-            menu_to_generate = found_menu
-            title = found_label
+        local found_node = find_menu_node(category_definitions.main, current_menu_id)
+        if found_node then
+            if found_node.children then
+                menu_to_generate = found_node.children
+                title = found_node.label
+            else
+                -- 子要素がない（リーフノード）の場合は、空のアイテムリストを返す
+                -- これにより、呼び出し元で Handle_Generic_Fetch に移行する
+                return {
+                    title = found_node.label,
+                    items = {},
+                    id = current_menu_id,
+                    is_leaf = true
+                }
+            end
         else
             -- 見つからない場合はメインメニューに戻るか、エラー処理
-            print(string.format("Warning: Menu ID '%s' not found, defaulting to main.", current_menu_id))
+            if not tonumber(current_menu_id) then
+                print(string.format("Warning: Menu ID '%s' not found, defaulting to main.", current_menu_id))
+            end
             menu_to_generate = category_definitions.main
             title = messages.synthesis_menu.title
         end

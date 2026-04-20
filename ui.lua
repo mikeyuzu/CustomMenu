@@ -413,12 +413,12 @@ function ui.create_withdrawal_dialog()
     if not item then return end
     local dx = (windower.get_windower_settings().ui_x_res / 2) - 150
     local dy = (windower.get_windower_settings().ui_y_res / 2) - 80
-    dialog_background = texts.new(string.rep(string.rep(' ', 40) .. '\n', 10), { pos={x=dx, y=dy}, bg={alpha=230, red=0, green=0, blue=0}, text={size=12} })
+    dialog_background = texts.new(string.rep(string.rep(' ', 40) .. '\n', 10), { pos={x=dx, y=dy}, bg={alpha=230, red=0, green=0, blue=0}, text={size=12, font='MS Gothic'} })
     dialog_background:show()
-    local t1 = texts.new(string.format(messages.synthesis_menu.confirm_removal, item.name), { pos={x=dx+15, y=dy+10}, text={size=12, color={255,255,255,255}}, bg={alpha=0} })
+    local t1 = texts.new(string.format(messages.synthesis_menu.confirm_removal, item.name), { pos={x=dx+15, y=dy+10}, text={size=12, font='MS Gothic', color={255,255,255,255}}, bg={alpha=0} })
     t1:show(); table.insert(dialog_texts, t1)
     local mq = math.min(item.quantity, item.stackSize)
-    quantity_text_obj = texts.new(string.format(messages.synthesis_menu.quantity_change, param.get_dialog_withdraw_quantity(), mq), { pos={x=dx+15, y=dy+30}, text={size=12, color={255,255,255,255}}, bg={alpha=0} })
+    quantity_text_obj = texts.new(string.format(messages.synthesis_menu.quantity_change, param.get_dialog_withdraw_quantity(), mq), { pos={x=dx+15, y=dy+30}, text={size=12, font='MS Gothic', color={255,255,255,255}}, bg={alpha=0} })
     quantity_text_obj:show(); table.insert(dialog_texts, quantity_text_obj)
     update_dialog_buttons()
 end
@@ -429,7 +429,7 @@ function ui.update_withdrawal_dialog(ut)
         local item = param.get_dialog_item()
         if item ~= nil then
             local mq = math.min(item.quantity, item.stackSize)
-            quantity_text_obj:text(string.format('個数 %d/%d (上下で変更)', param.get_dialog_withdraw_quantity(), mq))
+            quantity_text_obj:text(string.format(messages.synthesis_menu.quantity_change, param.get_dialog_withdraw_quantity(), mq))
         end
     elseif ut == 'buttons' then update_dialog_buttons() end
 end

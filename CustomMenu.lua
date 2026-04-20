@@ -237,6 +237,8 @@ local function updateNavigationDisplay()
         return
     end
 
+    local pos = windower.ffxi.get_mob_by_target('me')
+
     local message_params = {
         charaId = last_info.id,
         zoneId = last_info.zone or 0,
@@ -244,7 +246,10 @@ local function updateNavigationDisplay()
         coordinates = last_info.coordinates or "(?_?)",
         preZoneId = previous_info.zone or 0,
         preMapId = previous_info.map_id or 0,
-        preCoordinates = previous_info.coordinates or "(?_?)"
+        preCoordinates = previous_info.coordinates or "(?_?)",
+        posx = string.format("%.3f", (pos and pos.x) or 0.0),
+        posy = string.format("%.3f", (pos and pos.y) or 0.0),
+        posz = string.format("%.3f", (pos and pos.z) or 0.0)
     }
 
     http_handler.fetch_custom_menu_info(message_params, function(success, data)
@@ -500,7 +505,7 @@ function Handle_Eminence_Menu()
     end)
 end
 
-local function Fetch_And_Display_Item_Recipes(ah_id, min_lvl, max_lvl, title)
+function Fetch_And_Display_Item_Recipes(ah_id, min_lvl, max_lvl, title)
     local chara_id = param.get_chara_id() or windower.ffxi.get_player().id
     http_handler.fetch_synthesis_recipes_by_item(chara_id, ah_id, min_lvl, max_lvl, function(success, recipe_data, error_message)
         if success and recipe_data then
@@ -523,7 +528,7 @@ local function Fetch_And_Display_Item_Recipes(ah_id, min_lvl, max_lvl, title)
     end)
 end
 
-local function Handle_Item_List_Recipes(menu_id)
+function Handle_Item_List_Recipes(menu_id)
     local generated_menu = synergy_category_generator.generate_item_recipe_menu(menu_id or 'ITEM_LIST_RECIPES_ROOT')
     if #generated_menu.items == 1 and generated_menu.items[1].is_auto_trigger then
         local parts = generated_menu.items[1].id:split('_'); local ah_id = tonumber(parts[4]); local min_lvl = tonumber(parts[5]); local max_lvl = tonumber(parts[6])
@@ -532,7 +537,7 @@ local function Handle_Item_List_Recipes(menu_id)
     param.set_current_menu(menu_manager.create_submenu(generated_menu)); ui.show_menu_list(param.get_current_menu())
 end
 
-local function Handle_Generic_Fetch(menu_id)
+function Handle_Generic_Fetch(menu_id)
     http_handler.fetch_menu_data(menu_id, function(success, data)
         if success then param.set_current_menu(menu_manager.create_submenu(data)); ui.show_menu_list(param.get_current_menu()) end
     end)
@@ -597,11 +602,59 @@ function Handle_Craft_Synthesis()
     end)
 end
 
+function Handle_Synthesis_Storage_Navigation(menu_id)
+    local inventory_cache = param.get_synergy_inventory_cache()
+    if not inventory_cache then return end
+    
+    local generated_menu = synergy_category_generator.generate_menu_data(inventory_cache, menu_id)
+    
+    -- 末端カテゴリ（AH ID）の場合は、ローカルキャッシュから該当アイテムを抽出して表示
+    if generated_menu.is_leaf or ((#generated_menu.items == 0 or (generated_menu.items[1] and generated_menu.items[1].id == 'empty_message')) and tonumber(menu_id)) then
+        local ah_id = tonumber(menu_id)
+        local item_list = {}
+        for _, item in ipairs(inventory_cache) do
+            if item.auctionHouseId == ah_id then
+                table.insert(item_list, {
+                    id = tostring(item.id),
+                    name = item.name or "不明なアイテム",
+                    label = item.name or "不明なアイテム",
+                    quantity = item.quantity or 0,
+                    stackSize = item.stackSize or 99,
+                    subId = item.subId or 0,
+                    description = ""
+                })
+            end
+        end
+
+        if #item_list > 0 then
+            local item_menu_data = {
+                title = generated_menu.title or "アイテムリスト",
+                items = item_list,
+                id = 'STORAGE_ITEM_LIST_' .. menu_id
+            }
+            param.set_current_menu(menu_manager.create_submenu(item_menu_data))
+            ui.show_menu_list(param.get_current_menu())
+            return
+        end
+    end
+
+    if #generated_menu.items == 0 and generated_menu.empty_message then
+        local empty_menu_data = { title = generated_menu.title, items = {{ id = 'empty_message', label = generated_menu.empty_message, description = ""}}, cursor = 1, scroll_pos = 1, page_size = 1 }
+        param.set_current_menu(menu_manager.create_submenu(empty_menu_data))
+    else
+        generated_menu.id = menu_id
+        param.set_current_menu(menu_manager.create_submenu(generated_menu))
+    end
+    ui.show_menu_list(param.get_current_menu())
+end
+
 function Handle_Confirm()
     local selected = menu_manager.get_selected_item()
     if not selected then return end
     
     local id_str = tostring(selected.id)
+    local current_menu = param.get_current_menu()
+    local current_menu_id = current_menu and current_menu.id or "nil"
     
     -- アクションタイプ別の処理
     if selected.type == menu_definitions.types.SUBMENU then
@@ -633,8 +686,6 @@ function Handle_Confirm()
             Handle_Magic_Level_Selection(tonumber(g), tonumber(mi), tonumber(ma)) 
         end
     elseif id_str:find('MAGIC_INFO_') then
-        -- 魔法個別情報は詳細を表示するだけで、決定キーでは何もしない
-        -- (既にRefresh_Sub_Windowで表示されているはず)
         return
     elseif id_str:find('MISSION_CAT_') then 
         Handle_Mission_Category_Selection(selected.category_label, mission_definitions.missions[selected.category_key], selected.mission_results, selected.category_key)
@@ -652,12 +703,31 @@ function Handle_Confirm()
     elseif id_str:find('RECIPE_ITEM_') then 
         menu_manager.enter_synthesis_sub_window_mode(selected.isOpen == 1 and 'full' or 'materials_only')
         ui.show_synthesis_details(selected.data)
+    elseif id_str:find('ITEM_RECIPE_LEVEL_') then
+        local ah_id, min_lvl, max_lvl = id_str:match('ITEM_RECIPE_LEVEL_(%d+)_(%d+)_(%d+)')
+        if ah_id and min_lvl and max_lvl then
+            Fetch_And_Display_Item_Recipes(tonumber(ah_id), tonumber(min_lvl), tonumber(max_lvl), selected.label)
+        end
     elseif id_str == 'synthesis' then 
         Handle_Synthesis_Menu() 
     elseif id_str == 'synthesis_storage' then 
         Handle_Synthesis_Storage() 
+    elseif id_str == 'item_list' then
+        Handle_Item_List_Recipes(selected.id)
+    elseif id_str == 'ITEM_LIST_RECIPES_ROOT' or (current_menu and current_menu.id == 'ITEM_LIST_RECIPES_ROOT') then
+        Handle_Item_List_Recipes(selected.id)
+    elseif selected.quantity and selected.quantity > 0 then
+        -- 在庫アイテム（取り出しダイアログを表示）
+        param.set_dialog_open(true)
+        param.set_dialog_item(selected)
+        param.set_dialog_withdraw_quantity(1)
+        param.set_dialog_selected_button('withdraw')
+        ui.create_withdrawal_dialog()
+    elseif id_str:find('_MENU$') or (current_menu_id == 'main' or current_menu_id:find('_MENU$') or current_menu_id == 'synthesis_storage') then
+        -- 合成倉庫（ストレージ）内のカテゴリ遷移
+        -- 数値IDであっても、現在のメニューがストレージ関連ならカテゴリ展開を試みる
+        Handle_Synthesis_Storage_Navigation(selected.id)
     else 
-        -- 未定義のIDの場合は汎用フェッチを試みる
         Handle_Generic_Fetch(selected.id) 
     end
 end
@@ -679,9 +749,41 @@ function Refresh_Sub_Window()
 end
 
 function Refresh_Menu_After_Inventory_Update(updated_cache)
-    param.set_synergy_inventory_cache(updated_cache); local current = param.get_current_menu(); if not current then return end
-    local generated = synergy_category_generator.generate_menu_data(updated_cache, current.id)
-    param.set_current_menu(menu_manager.create_current_menu_from_data(generated)); ui.show_menu_list(param.get_current_menu())
+    param.set_synergy_inventory_cache(updated_cache)
+    local current = param.get_current_menu()
+    if not current then return end
+
+    local generated = nil
+    if current.id and current.id:find('STORAGE_ITEM_LIST_') then
+        -- アイテムリストの更新
+        local ah_id_str = current.id:match('STORAGE_ITEM_LIST_(%d+)')
+        local ah_id = tonumber(ah_id_str)
+        if ah_id then
+            local item_list = {}
+            for _, item in ipairs(updated_cache) do
+                if item.auctionHouseId == ah_id then
+                    table.insert(item_list, {
+                        id = tostring(item.id),
+                        name = item.name or "不明なアイテム",
+                        label = item.name or "不明なアイテム",
+                        quantity = item.quantity or 0,
+                        stackSize = item.stackSize or 99,
+                        subId = item.subId or 0,
+                        description = ""
+                    })
+                end
+            end
+            generated = { title = current.title, items = item_list, id = current.id }
+        end
+    end
+
+    -- アイテムリストでない場合、または上記で生成に失敗した場合は通常通りカテゴリデータを生成
+    if not generated then
+        generated = synergy_category_generator.generate_menu_data(updated_cache, current.id or 'main')
+    end
+
+    param.set_current_menu(menu_manager.create_current_menu_from_data(generated))
+    ui.show_menu_list(param.get_current_menu())
 end
 
 windower.register_event('addon command', function(command, ...) 

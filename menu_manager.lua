@@ -35,7 +35,7 @@ function menu_manager.get_main_menu()
         items = items,
         cursor = 1,
         scroll_pos = 1,
-        page_size = 10,
+        page_size = 20,
         id = 'MAIN_MENU'
     }
     menu_stack = {}
@@ -131,7 +131,7 @@ function menu_manager.create_submenu(data)
         items = data.items or {},
         cursor = 1,
         scroll_pos = 1,
-        page_size = 10,
+        page_size = 20,
         id = data.id or nil,
         -- dataにparent_idがあればそれを使い、なければスタックの最後（＝親）のidを使う
         parent_id = data.parent_id or (menu_stack[#menu_stack] and menu_stack[#menu_stack].id or nil)

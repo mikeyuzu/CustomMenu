@@ -508,24 +508,66 @@ end
 
 function Fetch_And_Display_Item_Recipes(ah_id, min_lvl, max_lvl, title)
     local chara_id = param.get_chara_id() or windower.ffxi.get_player().id
-    http_handler.fetch_synthesis_recipes_by_item(chara_id, ah_id, min_lvl, max_lvl, function(success, recipe_data, error_message)
-        if success and recipe_data then
-            local inventory_cache = param.get_synergy_inventory_cache()
-            local inventory_map = {}
-            if inventory_cache then for _, item in ipairs(inventory_cache) do inventory_map[tostring(item.id) .. "_" .. tostring(item.subId)] = item.quantity end end
-            local recipe_items = {}
-            for _, recipe in ipairs(recipe_data) do
-                if recipe.crystal then recipe.crystal.possession = inventory_map[tostring(recipe.crystal.itemId) .. "_" .. tostring(recipe.crystal.subId)] or 0 end
-                if recipe.ingredient then for _, ing in ipairs(recipe.ingredient) do ing.possession = inventory_map[tostring(ing.itemId) .. "_" .. tostring(ing.subId)] or 0 end end
-                local all_possessed = true
-                if recipe.crystal and (recipe.crystal.possession or 0) < (recipe.crystal.quantity or 1) then all_possessed = false end
-                if all_possessed and recipe.ingredient then for _, ing in ipairs(recipe.ingredient) do if (ing.possession or 0) < (ing.quantity or 1) then all_possessed = false; break end end end
-                table.insert(recipe_items, { id = 'RECIPE_ITEM_' .. tostring(recipe.id), label = recipe.result and recipe.result.name or "不明", data = recipe, isOpen = recipe.isOpen, allMaterialsPossessed = all_possessed })
-            end
-            local recipe_list_menu_data = { title = title or "レシピリスト", items = #recipe_items > 0 and recipe_items or {{ id = 'empty', label = "なし" }} }
-            param.set_current_menu(menu_manager.create_submenu(recipe_list_menu_data)); ui.hide_synthesis_details(); ui.show_menu_list(param.get_current_menu())
-            if #recipe_items > 0 then ui.show_synthesis_details(recipe_data[1]) end
+    
+    -- 所持品データを最新に更新してからレシピを取得
+    http_handler.fetch_synergy_inventory(chara_id, function(inv_success, inv_data)
+        if inv_success and inv_data then
+            param.set_synergy_inventory_cache(inv_data)
         end
+        
+        -- レシピを取得
+        http_handler.fetch_synthesis_recipes_by_item(chara_id, ah_id, min_lvl, max_lvl, function(success, recipe_data, error_message)
+            if success and recipe_data then
+                local inventory_cache = param.get_synergy_inventory_cache()
+                local inventory_map = {}
+                if inventory_cache then 
+                    for _, item in ipairs(inventory_cache) do 
+                        inventory_map[tostring(item.id) .. "_" .. tostring(item.subId)] = item.quantity 
+                    end 
+                end
+                
+                local recipe_items = {}
+                for _, recipe in ipairs(recipe_data) do
+                    if recipe.crystal then 
+                        recipe.crystal.possession = inventory_map[tostring(recipe.crystal.itemId) .. "_" .. tostring(recipe.crystal.subId)] or 0 
+                    end
+                    if recipe.ingredient then 
+                        for _, ing in ipairs(recipe.ingredient) do 
+                            ing.possession = inventory_map[tostring(ing.itemId) .. "_" .. tostring(ing.subId)] or 0 
+                        end 
+                    end
+                    
+                    local all_possessed = true
+                    if recipe.crystal and (recipe.crystal.possession or 0) < (recipe.crystal.quantity or 1) then 
+                        all_possessed = false 
+                    end
+                    if all_possessed and recipe.ingredient then 
+                        for _, ing in ipairs(recipe.ingredient) do 
+                            if (ing.possession or 0) < (ing.quantity or 1) then 
+                                all_possessed = false; break 
+                            end 
+                        end 
+                    end
+                    
+                    table.insert(recipe_items, { 
+                        id = 'RECIPE_ITEM_' .. tostring(recipe.id), 
+                        label = recipe.result and recipe.result.name or "不明", 
+                        data = recipe, 
+                        isOpen = recipe.isOpen, 
+                        allMaterialsPossessed = all_possessed 
+                    })
+                end
+                
+                local recipe_list_menu_data = { 
+                    title = title or "レシピリスト", 
+                    items = #recipe_items > 0 and recipe_items or {{ id = 'empty', label = "なし" }} 
+                }
+                param.set_current_menu(menu_manager.create_submenu(recipe_list_menu_data))
+                ui.hide_synthesis_details()
+                ui.show_menu_list(param.get_current_menu())
+                if #recipe_items > 0 then ui.show_synthesis_details(recipe_data[1]) end
+            end
+        end)
     end)
 end
 
@@ -535,7 +577,9 @@ function Handle_Item_List_Recipes(menu_id)
         local parts = generated_menu.items[1].id:split('_'); local ah_id = tonumber(parts[4]); local min_lvl = tonumber(parts[5]); local max_lvl = tonumber(parts[6])
         if ah_id and min_lvl and max_lvl then Fetch_And_Display_Item_Recipes(ah_id, min_lvl, max_lvl, generated_menu.title); return end
     end
-    param.set_current_menu(menu_manager.create_submenu(generated_menu)); ui.show_menu_list(param.get_current_menu())
+    local submenu = menu_manager.create_submenu(generated_menu)
+    submenu.is_item_list = true
+    param.set_current_menu(submenu); ui.show_menu_list(param.get_current_menu())
 end
 
 function Handle_Generic_Fetch(menu_id)
@@ -713,7 +757,7 @@ function Handle_Confirm()
         Handle_Synthesis_Menu() 
     elseif id_str == 'synthesis_storage' then 
         Handle_Synthesis_Storage() 
-    elseif id_str == 'item_list' then
+    elseif id_str == 'item_list' or (current_menu and current_menu.is_item_list) then
         Handle_Item_List_Recipes(selected.id)
     elseif id_str == 'ITEM_LIST_RECIPES_ROOT' or (current_menu and current_menu.id == 'ITEM_LIST_RECIPES_ROOT') then
         Handle_Item_List_Recipes(selected.id)

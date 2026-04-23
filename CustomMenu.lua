@@ -558,26 +558,47 @@ function Fetch_And_Display_Item_Recipes(ah_id, min_lvl, max_lvl, title)
                     })
                 end
                 
+                local current_id = string.format('ITEM_RECIPE_LEVEL_%d_%d_%d', ah_id, min_lvl, max_lvl)
                 local recipe_list_menu_data = { 
+                    id = current_id,
                     title = title or "レシピリスト", 
                     items = #recipe_items > 0 and recipe_items or {{ id = 'empty', label = "なし" }} 
                 }
-                param.set_current_menu(menu_manager.create_submenu(recipe_list_menu_data))
+                
+                local current = param.get_current_menu()
+                if current and current.id == current_id then
+                    param.set_current_menu(menu_manager.create_current_menu_from_data(recipe_list_menu_data))
+                else
+                    param.set_current_menu(menu_manager.create_submenu(recipe_list_menu_data))
+                end
+                
                 ui.hide_synthesis_details()
                 ui.show_menu_list(param.get_current_menu())
-                if #recipe_items > 0 then ui.show_synthesis_details(recipe_data[1]) end
+                if #recipe_items > 0 then 
+                    local cur = param.get_current_menu()
+                    ui.show_synthesis_details(recipe_items[cur.cursor].data)
+                end
             end
         end)
     end)
 end
 
 function Handle_Item_List_Recipes(menu_id)
-    local generated_menu = synergy_category_generator.generate_item_recipe_menu(menu_id or 'ITEM_LIST_RECIPES_ROOT')
+    local target_id = menu_id or 'ITEM_LIST_RECIPES_ROOT'
+    local generated_menu = synergy_category_generator.generate_item_recipe_menu(target_id)
     if #generated_menu.items == 1 and generated_menu.items[1].is_auto_trigger then
         local parts = generated_menu.items[1].id:split('_'); local ah_id = tonumber(parts[4]); local min_lvl = tonumber(parts[5]); local max_lvl = tonumber(parts[6])
         if ah_id and min_lvl and max_lvl then Fetch_And_Display_Item_Recipes(ah_id, min_lvl, max_lvl, generated_menu.title); return end
     end
-    local submenu = menu_manager.create_submenu(generated_menu)
+    
+    local current = param.get_current_menu()
+    local submenu
+    if current and current.id == generated_menu.id then
+        submenu = menu_manager.create_current_menu_from_data(generated_menu)
+    else
+        submenu = menu_manager.create_submenu(generated_menu)
+    end
+    
     submenu.is_item_list = true
     param.set_current_menu(submenu); ui.show_menu_list(param.get_current_menu())
 end
@@ -693,6 +714,38 @@ function Handle_Synthesis_Storage_Navigation(menu_id)
     ui.show_menu_list(param.get_current_menu())
 end
 
+function Handle_Open_Recipe(selected)
+    local chara_id = param.get_chara_id() or windower.ffxi.get_player().id
+    local recipe_id = selected.data.id
+    
+    http_handler.open_recipe(chara_id, recipe_id, function(success, message)
+        if success then
+            -- 解放成功ダイアログを表示
+            ui.create_open_recipe_dialog(selected.label == "？？？" and selected.data.result.name or selected.label)
+            param.set_open_recipe_dialog_open(true)
+            
+            -- インベントリとメニューを更新して解放状態を反映させる
+            http_handler.fetch_synergy_inventory(chara_id, function(inv_success, inv_data)
+                if inv_success then
+                    param.set_synergy_inventory_cache(inv_data)
+                    -- 現在のメニューがアイテムレシピリストなら再取得して更新
+                    local current = param.get_current_menu()
+                    if current and current.id and current.id:find('ITEM_RECIPE_LEVEL_') then
+                        local ah_id, min, max = current.id:match('ITEM_RECIPE_LEVEL_(%d+)_(%d+)_(%d+)')
+                        if ah_id then
+                            Fetch_And_Display_Item_Recipes(tonumber(ah_id), tonumber(min), tonumber(max), current.title)
+                        end
+                    end
+                end
+            end)
+        else
+            param.set_error_dialog_open(true)
+            param.set_error_dialog_message("レシピの解放に失敗しました: " .. (message or "不明"))
+            ui.create_error_dialog(param.get_error_dialog_message())
+        end
+    end)
+end
+
 function Handle_Confirm()
     local selected = menu_manager.get_selected_item()
     if not selected then return end
@@ -746,8 +799,14 @@ function Handle_Confirm()
             ui.show_eminence_details(selected.data, selected.status) 
         end
     elseif id_str:find('RECIPE_ITEM_') then 
-        menu_manager.enter_synthesis_sub_window_mode(selected.isOpen == 1 and 'full' or 'materials_only')
-        ui.show_synthesis_details(selected.data)
+        -- 未解放かつ素材が揃っている場合は解放処理を実行
+        if selected.isOpen == 0 and selected.allMaterialsPossessed then
+            Handle_Open_Recipe(selected)
+        else
+            -- それ以外は詳細を表示
+            menu_manager.enter_synthesis_sub_window_mode(selected.isOpen == 1 and 'full' or 'materials_only')
+            ui.show_synthesis_details(selected.data)
+        end
     elseif id_str:find('ITEM_RECIPE_LEVEL_') then
         local ah_id, min_lvl, max_lvl = id_str:match('ITEM_RECIPE_LEVEL_(%d+)_(%d+)_(%d+)')
         if ah_id and min_lvl and max_lvl then
@@ -793,6 +852,30 @@ function Refresh_Sub_Window()
     elseif id_str:find('EMINENCE_ITEM_') then ui.show_eminence_details(selected.data, selected.status) end
 end
 
+function Refresh_Current_Menu()
+    local current = param.get_current_menu()
+    if not current then return end
+    
+    if current.id and current.id:find('ITEM_RECIPE_LEVEL_') then
+        local ah_id, min_lvl, max_lvl = current.id:match('ITEM_RECIPE_LEVEL_(%d+)_(%d+)_(%d+)')
+        if ah_id and min_lvl and max_lvl then
+            Fetch_And_Display_Item_Recipes(tonumber(ah_id), tonumber(min_lvl), tonumber(max_lvl), current.title)
+            return
+        end
+    elseif current.id == 'ITEM_LIST_MENU' or current.is_item_list then
+        Handle_Item_List_Recipes(current.id)
+        return
+    end
+    
+    -- 他のメニュータイプ（在庫ベースなど）の更新
+    local chara_id = param.get_chara_id() or windower.ffxi.get_player().id
+    http_handler.fetch_synergy_inventory(chara_id, function(success, data)
+        if success then
+            Refresh_Menu_After_Inventory_Update(data)
+        end
+    end)
+end
+
 function Refresh_Menu_After_Inventory_Update(updated_cache)
     param.set_synergy_inventory_cache(updated_cache)
     local current = param.get_current_menu()
@@ -829,6 +912,7 @@ function Refresh_Menu_After_Inventory_Update(updated_cache)
 
     param.set_current_menu(menu_manager.create_current_menu_from_data(generated))
     ui.show_menu_list(param.get_current_menu())
+    Refresh_Sub_Window()
 end
 
 windower.register_event('addon command', function(command, ...) 
@@ -858,7 +942,7 @@ windower.register_event('keyboard', function(dik, down, flags, blocked)
     if param.get_input_delay_frames() > 0 or not down then return true end
     local action = input_handler.process_key(dik)
     
-    if param.get_dialog_open() or param.get_craft_confirm_dialog_open() or param.get_eminence_confirm_dialog_open() or param.get_error_dialog_open() or param.get_success_dialog_open() then
+    if param.get_dialog_open() or param.get_craft_confirm_dialog_open() or param.get_eminence_confirm_dialog_open() or param.get_error_dialog_open() or param.get_success_dialog_open() or param.get_open_recipe_dialog_open() then
         if action == 'confirm' then
             if param.get_dialog_open() then
                 if param.get_dialog_selected_button() == 'withdraw' then Handle_Withdraw() else Close_Dialog() end
@@ -871,13 +955,17 @@ windower.register_event('keyboard', function(dik, down, flags, blocked)
                 Close_Error_Dialog()
             elseif param.get_success_dialog_open() then
                 ui.destroy_success_dialog(); param.set_success_dialog_open(false)
+            elseif param.get_open_recipe_dialog_open() then
+                ui.destroy_open_recipe_dialog(); param.set_open_recipe_dialog_open(false)
+                Refresh_Current_Menu()
             end
         elseif action == 'cancel' then
             if param.get_dialog_open() then Close_Dialog()
             elseif param.get_craft_confirm_dialog_open() then Close_Craft_Confirm_Dialog()
             elseif param.get_eminence_confirm_dialog_open() then Close_Eminence_Confirm_Dialog()
             elseif param.get_error_dialog_open() then Close_Error_Dialog()
-            elseif param.get_success_dialog_open() then ui.destroy_success_dialog(); param.set_success_dialog_open(false) end
+            elseif param.get_success_dialog_open() then ui.destroy_success_dialog(); param.set_success_dialog_open(false)
+            elseif param.get_open_recipe_dialog_open() then ui.destroy_open_recipe_dialog(); param.set_open_recipe_dialog_open(false); Refresh_Current_Menu() end
         elseif action == 'left' or action == 'right' then
             if param.get_dialog_open() then
                 param.set_dialog_selected_button(param.get_dialog_selected_button() == 'cancel' and 'withdraw' or 'cancel')

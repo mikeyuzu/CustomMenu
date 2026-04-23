@@ -413,12 +413,12 @@ function ui.create_withdrawal_dialog()
     if not item then return end
     local dx = (windower.get_windower_settings().ui_x_res / 2) - 150
     local dy = (windower.get_windower_settings().ui_y_res / 2) - 80
-    dialog_background = texts.new(string.rep(string.rep(' ', 40) .. '\n', 10), { pos={x=dx, y=dy}, bg={alpha=230, red=0, green=0, blue=0}, text={size=12, font='MS Gothic'} })
+    dialog_background = texts.new(string.rep(string.rep(' ', 40) .. '\n', 10), { pos={x=dx, y=dy}, bg={alpha=230, red=0, green=0, blue=0}, text={size=12, font='MS Gothic'}, flags={z=1} })
     dialog_background:show()
-    local t1 = texts.new(string.format(messages.synthesis_menu.confirm_removal, item.name), { pos={x=dx+15, y=dy+10}, text={size=12, font='MS Gothic', color={255,255,255,255}}, bg={alpha=0} })
+    local t1 = texts.new(string.format(messages.synthesis_menu.confirm_removal, item.name), { pos={x=dx+15, y=dy+10}, text={size=12, font='MS Gothic', color={255,255,255,255}}, bg={alpha=0}, flags={z=2} })
     t1:show(); table.insert(dialog_texts, t1)
     local mq = math.min(item.quantity, item.stackSize)
-    quantity_text_obj = texts.new(string.format(messages.synthesis_menu.quantity_change, param.get_dialog_withdraw_quantity(), mq), { pos={x=dx+15, y=dy+30}, text={size=12, font='MS Gothic', color={255,255,255,255}}, bg={alpha=0} })
+    quantity_text_obj = texts.new(string.format(messages.synthesis_menu.quantity_change, param.get_dialog_withdraw_quantity(), mq), { pos={x=dx+15, y=dy+30}, text={size=12, font='MS Gothic', color={255,255,255,255}}, bg={alpha=0}, flags={z=2} })
     quantity_text_obj:show(); table.insert(dialog_texts, quantity_text_obj)
     update_dialog_buttons()
 end
@@ -462,9 +462,9 @@ function ui.create_craft_confirm_dialog(name)
     ui.destroy_craft_confirm_dialog()
     local dx = (windower.get_windower_settings().ui_x_res / 2) - 150
     local dy = (windower.get_windower_settings().ui_y_res / 2) - 80
-    ccd_bg = texts.new(string.rep(string.rep(' ', 40) .. '\n', 10), { pos={x=dx, y=dy}, bg={alpha=230, red=0, green=0, blue=0}, text={size=12, font='MS Gothic'} })
+    ccd_bg = texts.new(string.rep(string.rep(' ', 40) .. '\n', 10), { pos={x=dx, y=dy}, bg={alpha=230, red=0, green=0, blue=0}, text={size=12, font='MS Gothic'}, flags={z=1} })
     ccd_bg:show()
-    local t = texts.new(string.format(messages.synthesis_menu.confirm_synthesis, name), { pos={x=dx+15, y=dy+20}, text={size=12, font='MS Gothic', color={255,255,255,255}}, bg={alpha=0} })
+    local t = texts.new(string.format(messages.synthesis_menu.confirm_synthesis, name), { pos={x=dx+15, y=dy+20}, text={size=12, font='MS Gothic', color={255,255,255,255}}, bg={alpha=0}, flags={z=2} })
     t:show(); table.insert(ccd_texts, t)
     update_ccd_buttons()
 end
@@ -486,9 +486,9 @@ local function update_ecd_buttons()
     local dy = (windower.get_windower_settings().ui_y_res / 2) - 80
     local by = dy + 60
     local function btn(x, txt, is_sel)
-        local b_bg = texts.new(string.rep(' ', 11)..'\n'..string.rep(' ', 11), { pos={x=x, y=by}, bg={alpha=255, red=is_sel and 100 or 50, green=is_sel and 100 or 50, blue=is_sel and 150 or 50}, text={size=12, font='MS Gothic'}, flags={bold=true} })
+        local b_bg = texts.new(string.rep(' ', 11)..'\n'..string.rep(' ', 11), { pos={x=x, y=by}, bg={alpha=255, red=is_sel and 100 or 50, green=is_sel and 100 or 50, blue=is_sel and 150 or 50}, text={size=12, font='MS Gothic'}, flags={bold=true, z=2} })
         b_bg:show(); table.insert(ecd_btn_bg, b_bg)
-        local b_t = texts.new(txt, { pos={x=x+15, y=by+8}, text={size=12, font='MS Gothic', color={255,255,255,255}, align='center'}, bg={alpha=0} })
+        local b_t = texts.new(txt, { pos={x=x+15, y=by+8}, text={size=12, font='MS Gothic', color={255,255,255,255}, align='center'}, bg={alpha=0}, flags={z=3} })
         b_t:show(); table.insert(ecd_btn_texts, b_t)
     end
     btn(dx + 70, messages.no_button, sel == 'no'); btn(dx + 170, messages.yes_button, sel == 'yes')
@@ -498,9 +498,9 @@ function ui.create_eminence_confirm_dialog(name)
     ui.destroy_eminence_confirm_dialog()
     local dx = (windower.get_windower_settings().ui_x_res / 2) - 150
     local dy = (windower.get_windower_settings().ui_y_res / 2) - 80
-    ecd_bg = texts.new(string.rep(string.rep(' ', 40) .. '\n', 10), { pos={x=dx, y=dy}, bg={alpha=230, red=0, green=0, blue=0}, text={size=12, font='MS Gothic'} })
+    ecd_bg = texts.new(string.rep(string.rep(' ', 40) .. '\n', 10), { pos={x=dx, y=dy}, bg={alpha=230, red=0, green=0, blue=0}, text={size=12, font='MS Gothic'}, flags={z=1} })
     ecd_bg:show()
-    local t = texts.new(string.format(messages.eminence_menu.confirm_receive, name), { pos={x=dx+15, y=dy+20}, text={size=12, font='MS Gothic', color={255,255,255,255}}, bg={alpha=0} })
+    local t = texts.new(string.format(messages.eminence_menu.confirm_receive, name), { pos={x=dx+15, y=dy+20}, text={size=12, font='MS Gothic', color={255,255,255,255}}, bg={alpha=0}, flags={z=2} })
     t:show(); table.insert(ecd_texts, t)
     update_ecd_buttons()
 end
@@ -520,14 +520,14 @@ function ui.create_success_dialog(msg)
     local h = 80 + lc * 20; if h < 120 then h = 120 end
     local dx = (windower.get_windower_settings().ui_x_res / 2) - 150
     local dy = (windower.get_windower_settings().ui_y_res / 2) - h/2
-    sd_bg = texts.new(string.rep(string.rep(' ', 40) .. '\n', math.ceil(h/16)), { pos={x=dx, y=dy}, bg={alpha=230}, text={size=12, font='MS Gothic'} })
+    sd_bg = texts.new(string.rep(string.rep(' ', 40) .. '\n', math.ceil(h/16)), { pos={x=dx, y=dy}, bg={alpha=230, red=0, green=0, blue=0}, text={size=12, font='MS Gothic'}, flags={z=1} })
     sd_bg:show()
-    local t = texts.new(msg, { pos={x=dx+15, y=dy+20}, text={size=12, font='MS Gothic', color={255,255,255,255}}, bg={alpha=0} })
+    local t = texts.new(msg, { pos={x=dx+15, y=dy+20}, text={size=12, font='MS Gothic', color={255,255,255,255}}, bg={alpha=0}, flags={z=2} })
     t:show(); table.insert(sd_texts, t)
     local bx = dx + 120; local by = dy + h - 48
-    sd_btn_bg = texts.new(string.rep(' ', 11)..'\n'..string.rep(' ', 11), { pos={x=bx, y=by}, bg={alpha=255, red=100, green=100, blue=150}, text={size=12, font='MS Gothic'} })
+    sd_btn_bg = texts.new(string.rep(' ', 11)..'\n'..string.rep(' ', 11), { pos={x=bx, y=by}, bg={alpha=255, red=100, green=100, blue=150}, text={size=12, font='MS Gothic'}, flags={z=2} })
     sd_btn_bg:show()
-    sd_btn_t = texts.new(messages.ok_button, { pos={x=bx+20, y=by+8}, text={size=12, font='MS Gothic', color={255,255,255,255}, align='center'}, bg={alpha=0} })
+    sd_btn_t = texts.new(messages.ok_button, { pos={x=bx+20, y=by+8}, text={size=12, font='MS Gothic', color={255,255,255,255}, align='center'}, bg={alpha=0}, flags={z=3} })
     sd_btn_t:show()
 end
 
@@ -540,9 +540,9 @@ function ui.create_open_recipe_dialog(name)
     ui.destroy_open_recipe_dialog()
     local dx = (windower.get_windower_settings().ui_x_res / 2) - 150
     local dy = (windower.get_windower_settings().ui_y_res / 2) - 80
-    ord_bg = texts.new(string.rep(string.rep(' ', 40) .. '\n', 10), { pos={x=dx, y=dy}, bg={alpha=230}, text={size=12, font='MS Gothic'} })
+    ord_bg = texts.new(string.rep(string.rep(' ', 40) .. '\n', 10), { pos={x=dx, y=dy}, bg={alpha=230, red=0, green=0, blue=0}, text={size=12, font='MS Gothic'}, flags={z=1} })
     ord_bg:show()
-    local t = texts.new(string.format(messages.synthesis_menu.recipe_opened, name), { pos={x=dx+15, y=dy+20}, text={size=12, font='MS Gothic', color={255,255,255,255}}, bg={alpha=0} })
+    local t = texts.new(string.format(messages.synthesis_menu.recipe_opened, name), { pos={x=dx+15, y=dy+20}, text={size=12, font='MS Gothic', color={255,255,255,255}}, bg={alpha=0}, flags={z=2} })
     t:show(); table.insert(ord_texts, t)
 end
 
@@ -559,14 +559,14 @@ function ui.create_error_dialog(msg)
     local h = 80 + lc * 20; if h < 120 then h = 120 end
     local dx = (windower.get_windower_settings().ui_x_res / 2) - 150
     local dy = (windower.get_windower_settings().ui_y_res / 2) - h/2
-    ed_bg = texts.new(string.rep(string.rep(' ', 40) .. '\n', math.ceil(h/16)), { pos={x=dx, y=dy}, bg={alpha=230, red=30}, text={size=12, font='MS Gothic'} })
+    ed_bg = texts.new(string.rep(string.rep(' ', 40) .. '\n', math.ceil(h/16)), { pos={x=dx, y=dy}, bg={alpha=230, red=30, green=0, blue=0}, text={size=12, font='MS Gothic'}, flags={z=1} })
     ed_bg:show()
-    local t = texts.new(msg, { pos={x=dx+15, y=dy+20}, text={size=12, font='MS Gothic', color={255,255,255,255}}, bg={alpha=0} })
+    local t = texts.new(msg, { pos={x=dx+15, y=dy+20}, text={size=12, font='MS Gothic', color={255,255,255,255}}, bg={alpha=0}, flags={z=2} })
     t:show(); table.insert(ed_texts, t)
     local bx = dx + 120; local by = dy + h - 48
-    ed_btn_bg = texts.new(string.rep(' ', 11)..'\n'..string.rep(' ', 11), { pos={x=bx, y=by}, bg={alpha=255, red=100, green=100, blue=150}, text={size=12, font='MS Gothic'} })
+    ed_btn_bg = texts.new(string.rep(' ', 11)..'\n'..string.rep(' ', 11), { pos={x=bx, y=by}, bg={alpha=255, red=100, green=100, blue=150}, text={size=12, font='MS Gothic'}, flags={z=2} })
     ed_btn_bg:show()
-    ed_btn_t = texts.new(messages.ok_button, { pos={x=bx+20, y=by+8}, text={size=12, font='MS Gothic', color={255,255,255,255}, align='center'}, bg={alpha=0} })
+    ed_btn_t = texts.new(messages.ok_button, { pos={x=bx+20, y=by+8}, text={size=12, font='MS Gothic', color={255,255,255,255}, align='center'}, bg={alpha=0}, flags={z=3} })
     ed_btn_t:show()
 end
 

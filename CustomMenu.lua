@@ -59,18 +59,18 @@ local function Show_Magic_List_Menu(data, title)
         local magic_id = tonumber(info.Id or info.id)
         local flag = tonumber(info.Flag or info.flag or 0)
         local jobs = info.Jobs or info.jobs
-        
+
         if magic_id then
             local def = magic_definitions.magics[magic_id]
             local label = def and def.name or ("魔法ID:" .. magic_id)
             if flag == 0 then
                 label = "\\cs(128,128,128)" .. label .. "\\cr"
             end
-            
-            table.insert(menu_items, { 
-                id = 'MAGIC_INFO_' .. magic_id, 
-                label = label, 
-                data = { Id = magic_id, Flag = flag, Jobs = jobs } 
+
+            table.insert(menu_items, {
+                id = 'MAGIC_INFO_' .. magic_id,
+                label = label,
+                data = { Id = magic_id, Flag = flag, Jobs = jobs }
             })
         end
     end
@@ -88,7 +88,7 @@ local function Handle_Magic_Level_Selection(group_index, level_min, level_max)
         -- MinLevelが取得できない、あるいは0の場合は、Lv1として扱い最初のグループに表示させる
         local min_lvl = tonumber(info.MinLevel or info.minLevel) or 1
         if min_lvl == 0 then min_lvl = 1 end
-        
+
         if min_lvl >= level_min and min_lvl <= level_max then
             table.insert(filtered, info)
         end
@@ -110,7 +110,7 @@ end
 
 local function Show_Magic_Level_Submenus(group_index, data)
     magic_group_data_cache[group_index] = data
-    
+
     -- デバッグログ: APIから取得したデータの統計
     local unlearned_count = 0
     for _, info in ipairs(data) do
@@ -265,7 +265,7 @@ local function updateNavigationDisplay()
             if excl ~= param.get_navigation_exclamation() then
                 ui.update_indicator(excl)
                 param.set_navigation_exclamation(excl)
-                
+
                 -- メインメニューが開いている場合はエミネンスのビックリマークを更新
                 local current = param.get_current_menu()
                 if param.get_menu_open() and current and current.id == 'MAIN_MENU' then
@@ -385,6 +385,10 @@ local function Handle_Magic_Encyclopedia()
 end
 
 function Handle_Synthesis_Menu()
+    local player = windower.ffxi.get_player()
+    if player and player.id then
+        param.set_chara_id(player.id)
+    end
     local synthesis_menu_data = menu_manager.get_synthesis_menu_data()
     param.set_current_menu(menu_manager.create_submenu(synthesis_menu_data))
     ui.show_menu_list(param.get_current_menu())
@@ -508,75 +512,78 @@ end
 
 function Fetch_And_Display_Item_Recipes(ah_id, min_lvl, max_lvl, title)
     local chara_id = param.get_chara_id() or windower.ffxi.get_player().id
-    
+    param.set_chara_id(chara_id)
+
     -- 所持品データを最新に更新してからレシピを取得
     http_handler.fetch_synergy_inventory(chara_id, function(inv_success, inv_data)
         if inv_success and inv_data then
             param.set_synergy_inventory_cache(inv_data)
         end
-        
+
         -- レシピを取得
         http_handler.fetch_synthesis_recipes_by_item(chara_id, ah_id, min_lvl, max_lvl, function(success, recipe_data, error_message)
             if success and recipe_data then
                 local inventory_cache = param.get_synergy_inventory_cache()
                 local inventory_map = {}
-                if inventory_cache then 
-                    for _, item in ipairs(inventory_cache) do 
-                        inventory_map[tostring(item.id) .. "_" .. tostring(item.subId)] = item.quantity 
-                    end 
+                if inventory_cache then
+                    for _, item in ipairs(inventory_cache) do
+                        inventory_map[tostring(item.id) .. "_" .. tostring(item.subId)] = item.quantity
+                    end
                 end
-                
+
                 local recipe_items = {}
                 for _, recipe in ipairs(recipe_data) do
-                    if recipe.crystal then 
-                        recipe.crystal.possession = inventory_map[tostring(recipe.crystal.itemId) .. "_" .. tostring(recipe.crystal.subId)] or 0 
+                    if recipe.crystal then
+                        recipe.crystal.possession = inventory_map[tostring(recipe.crystal.itemId) .. "_" .. tostring(recipe.crystal.subId)] or 0
                     end
-                    if recipe.ingredient then 
-                        for _, ing in ipairs(recipe.ingredient) do 
-                            ing.possession = inventory_map[tostring(ing.itemId) .. "_" .. tostring(ing.subId)] or 0 
-                        end 
+                    if recipe.ingredient then
+                        for _, ing in ipairs(recipe.ingredient) do
+                            ing.possession = inventory_map[tostring(ing.itemId) .. "_" .. tostring(ing.subId)] or 0
+                        end
                     end
-                    
+
                     local all_possessed = true
-                    if recipe.crystal and (recipe.crystal.possession or 0) < (recipe.crystal.quantity or 1) then 
-                        all_possessed = false 
+                    if recipe.crystal and (recipe.crystal.possession or 0) < (recipe.crystal.quantity or 1) then
+                        all_possessed = false
                     end
-                    if all_possessed and recipe.ingredient then 
-                        for _, ing in ipairs(recipe.ingredient) do 
-                            if (ing.possession or 0) < (ing.quantity or 1) then 
-                                all_possessed = false; break 
-                            end 
-                        end 
+                    if all_possessed and recipe.ingredient then
+                        for _, ing in ipairs(recipe.ingredient) do
+                            if (ing.possession or 0) < (ing.quantity or 1) then
+                                all_possessed = false; break
+                            end
+                        end
                     end
-                    
-                    table.insert(recipe_items, { 
-                        id = 'RECIPE_ITEM_' .. tostring(recipe.id), 
-                        label = recipe.result and recipe.result.name or "不明", 
-                        data = recipe, 
-                        isOpen = recipe.isOpen, 
-                        allMaterialsPossessed = all_possessed 
+
+                    table.insert(recipe_items, {
+                        id = 'RECIPE_ITEM_' .. tostring(recipe.id),
+                        label = recipe.result and recipe.result.name or "不明",
+                        data = recipe,
+                        isOpen = recipe.isOpen,
+                        allMaterialsPossessed = all_possessed
                     })
                 end
-                
+
                 local current_id = string.format('ITEM_RECIPE_LEVEL_%d_%d_%d', ah_id, min_lvl, max_lvl)
-                local recipe_list_menu_data = { 
+                local recipe_list_menu_data = {
                     id = current_id,
-                    title = title or "レシピリスト", 
-                    items = #recipe_items > 0 and recipe_items or {{ id = 'empty', label = "なし" }} 
+                    title = title or "レシピリスト",
+                    items = #recipe_items > 0 and recipe_items or {{ id = 'empty', label = "なし" }}
                 }
-                
+
                 local current = param.get_current_menu()
                 if current and current.id == current_id then
                     param.set_current_menu(menu_manager.create_current_menu_from_data(recipe_list_menu_data))
                 else
                     param.set_current_menu(menu_manager.create_submenu(recipe_list_menu_data))
                 end
-                
+
                 ui.hide_synthesis_details()
                 ui.show_menu_list(param.get_current_menu())
-                if #recipe_items > 0 then 
+                if #recipe_items > 0 then
                     local cur = param.get_current_menu()
-                    ui.show_synthesis_details(recipe_items[cur.cursor].data)
+                    if cur then
+                        ui.show_synthesis_details(recipe_items[cur.cursor].data)
+                    end
                 end
             end
         end)
@@ -585,12 +592,16 @@ end
 
 function Handle_Item_List_Recipes(menu_id)
     local target_id = menu_id or 'ITEM_LIST_RECIPES_ROOT'
+    ---@type any
     local generated_menu = synergy_category_generator.generate_item_recipe_menu(target_id)
     if #generated_menu.items == 1 and generated_menu.items[1].is_auto_trigger then
-        local parts = generated_menu.items[1].id:split('_'); local ah_id = tonumber(parts[4]); local min_lvl = tonumber(parts[5]); local max_lvl = tonumber(parts[6])
+        local ah_id_str, min_lvl_str, max_lvl_str = generated_menu.items[1].id:match('ITEM_RECIPE_LEVEL_(%d+)_(%d+)_(%d+)')
+        local ah_id = tonumber(ah_id_str)
+        local min_lvl = tonumber(min_lvl_str)
+        local max_lvl = tonumber(max_lvl_str)
         if ah_id and min_lvl and max_lvl then Fetch_And_Display_Item_Recipes(ah_id, min_lvl, max_lvl, generated_menu.title); return end
     end
-    
+
     local current = param.get_current_menu()
     local submenu
     if current and current.id == generated_menu.id then
@@ -598,7 +609,7 @@ function Handle_Item_List_Recipes(menu_id)
     else
         submenu = menu_manager.create_submenu(generated_menu)
     end
-    
+
     submenu.is_item_list = true
     param.set_current_menu(submenu); ui.show_menu_list(param.get_current_menu())
 end
@@ -651,16 +662,127 @@ function Close_Error_Dialog()
     param.set_error_dialog_open(false); param.set_error_dialog_message(nil); ui.destroy_error_dialog()
 end
 
-local guild_id_to_skill_id_map = { [1]=54, [2]=55, [3]=51, [4]=52, [5]=53, [6]=56, [7]=48, [8]=49 }
+-- 正確なスキルIDマップ (ユーザー提供の定義に基づく)
+local guild_id_to_skill_id_map = {
+    [1] = 49, -- WOODWORKING
+    [2] = 50, -- SMITHING
+    [3] = 51, -- GOLDSMITHING
+    [4] = 52, -- CLOTHCRAFT (裁縫)
+    [5] = 53, -- LEATHERCRAFT
+    [6] = 54, -- BONECRAFT
+    [7] = 55, -- ALCHEMY
+    [8] = 56, -- COOKING
+    [0] = 48, -- FISHING (フォールバック)
+}
+
+-- スキル名（ラベル）からギルドIDへの逆引きマップ
+local skill_label_to_guild_id = {
+    ['木工'] = 1, ['woodworking'] = 1,
+    ['鍛冶'] = 2, ['smithing'] = 2,
+    ['彫金'] = 3, ['goldsmithing'] = 3,
+    ['裁縫'] = 4, ['clothcraft'] = 4,
+    ['革細工'] = 5, ['leathercraft'] = 5,
+    ['骨細工'] = 6, ['bonecraft'] = 6,
+    ['錬金術'] = 7, ['alchemy'] = 7,
+    ['調理'] = 8, ['cooking'] = 8,
+    ['釣り'] = 0, ['fishing'] = 0,
+}
+
+-- レシピから最も高いスキル情報を抽出するヘルパー
+local function get_best_skill_info(recipe_data)
+    local max_lvl = 0
+    local best_guild_id = 0
+
+    -- CraftRank配列（添字1〜8）から最大ランクの添字を特定
+    local ranks = recipe_data.CraftRank or recipe_data.craftRank or recipe_data.craftrank
+    if type(ranks) == 'table' then
+        for i = 1, 8 do
+            local val = tonumber(ranks[i]) or 0
+            if val > max_lvl then
+                max_lvl = val
+                best_guild_id = i
+            end
+        end
+    end
+
+    -- インデックスから見つからなかった場合、旧来のフィールドや名前からの特定を試みる
+    if best_guild_id == 0 then
+        local function get_gid(data, suffix)
+            suffix = suffix or ""
+            return data['guildId'..suffix] or data['guildID'..suffix] or data['guild'..suffix] or 0
+        end
+        local function get_lvl(data, suffix)
+            suffix = suffix or ""
+            return data['skillLevel'..suffix] or data['skilllevel'..suffix] or data['level'..suffix] or 0
+        end
+
+        local main_gid = get_gid(recipe_data)
+        local main_lvl = get_lvl(recipe_data)
+        if main_gid == 0 and recipe_data.guildName then
+            local name_lower = recipe_data.guildName:lower()
+            main_gid = skill_label_to_guild_id[recipe_data.guildName] or skill_label_to_guild_id[name_lower] or 0
+        end
+
+        max_lvl = main_lvl
+        best_guild_id = main_gid
+        
+        for i = 1, 3 do
+            local sg_id = get_gid(recipe_data, i)
+            local sl_lvl = get_lvl(recipe_data, i)
+            if sg_id == 0 and recipe_data['subGuildName'..i] then
+                local sname = recipe_data['subGuildName'..i]
+                sg_id = skill_label_to_guild_id[sname] or skill_label_to_guild_id[sname:lower()] or 0
+            end
+            if sl_lvl > max_lvl then
+                max_lvl = sl_lvl
+                best_guild_id = sg_id
+            end
+        end
+    end
+    
+    return best_guild_id, max_lvl
+end
+
 function Handle_Craft_Synthesis()
-    local chara_id = param.get_chara_id(); local recipe_data = param.get_craft_confirm_recipe_data(); local nq_hq_index = param.get_craft_confirm_nq_hq_index()
+    local chara_id = param.get_chara_id() or windower.ffxi.get_player().id
+    local recipe_data = param.get_craft_confirm_recipe_data()
+    local nq_hq_index = param.get_craft_confirm_nq_hq_index()
+    
     if not chara_id or not recipe_data or not nq_hq_index then return end
     local result_item = (nq_hq_index == 1) and recipe_data.result or (nq_hq_index == 2 and recipe_data.resultHQ1 or (nq_hq_index == 3 and recipe_data.resultHQ2 or recipe_data.resultHQ3))
     if not result_item then return end
-    local skill_id = guild_id_to_skill_id_map[recipe_data.guildId]
+
+    -- 最も高いスキルを選択
+    local best_guild_id, _ = get_best_skill_info(recipe_data)
+    local skill_id = guild_id_to_skill_id_map[best_guild_id] or 48
+
     http_handler.synthesize_item(chara_id, skill_id, recipe_data.id, result_item.itemId or result_item.id, result_item.subId, 1, function(success, data, error_message)
         if success then
-            ui.create_success_dialog("合成に成功しました"); param.set_success_dialog_open(true)
+            local skill_name = "不明"
+            local skill_index = tonumber(best_guild_id)
+            if skill_index and messages.synergy_skill.items[skill_index] then
+                skill_name = messages.synergy_skill.items[skill_index].label
+            else
+                for label, id in pairs(skill_label_to_guild_id) do
+                    if id == best_guild_id and #label > 3 then
+                        skill_name = label
+                        break
+                    end
+                end
+            end
+            
+            local item_name = result_item.name or "アイテム"
+            local current_level = (data and data.skillLevel) or 0
+            local destination = (data and data.destination) or 'storage'
+            
+            local msg_template = (destination == 'post') 
+                and messages.synthesis_menu.synthesis_success_post 
+                or messages.synthesis_menu.synthesis_success_material_storage
+            
+            local success_msg = string.format(msg_template, item_name, skill_name, current_level)
+            
+            ui.create_success_dialog(success_msg); param.set_success_dialog_open(true)
+            menu_manager.exit_synthesis_sub_window_mode()
             http_handler.fetch_synergy_inventory(chara_id, function(s, d) if s then Refresh_Menu_After_Inventory_Update(d) end end)
         else
             param.set_error_dialog_open(true); param.set_error_dialog_message("失敗: " .. (error_message or "不明")); ui.create_error_dialog(param.get_error_dialog_message())
@@ -671,9 +793,9 @@ end
 function Handle_Synthesis_Storage_Navigation(menu_id)
     local inventory_cache = param.get_synergy_inventory_cache()
     if not inventory_cache then return end
-    
+
     local generated_menu = synergy_category_generator.generate_menu_data(inventory_cache, menu_id)
-    
+
     -- 末端カテゴリ（AH ID）の場合は、ローカルキャッシュから該当アイテムを抽出して表示
     if generated_menu.is_leaf or ((#generated_menu.items == 0 or (generated_menu.items[1] and generated_menu.items[1].id == 'empty_message')) and tonumber(menu_id)) then
         local ah_id = tonumber(menu_id)
@@ -717,13 +839,13 @@ end
 function Handle_Open_Recipe(selected)
     local chara_id = param.get_chara_id() or windower.ffxi.get_player().id
     local recipe_id = selected.data.id
-    
+
     http_handler.open_recipe(chara_id, recipe_id, function(success, message)
         if success then
             -- 解放成功ダイアログを表示
             ui.create_open_recipe_dialog(selected.label == "？？？" and selected.data.result.name or selected.label)
             param.set_open_recipe_dialog_open(true)
-            
+
             -- インベントリとメニューを更新して解放状態を反映させる
             http_handler.fetch_synergy_inventory(chara_id, function(inv_success, inv_data)
                 if inv_success then
@@ -749,62 +871,62 @@ end
 function Handle_Confirm()
     local selected = menu_manager.get_selected_item()
     if not selected then return end
-    
+
     local id_str = tostring(selected.id)
     local current_menu = param.get_current_menu()
     local current_menu_id = current_menu and current_menu.id or "nil"
-    
+
     -- アクションタイプ別の処理
     if selected.type == menu_definitions.types.SUBMENU then
         local def = menu_definitions.get_menu_by_id(selected.submenu_id)
-        if def then 
+        if def then
             param.set_current_menu(menu_manager.create_submenu(def))
-            ui.show_menu_list(param.get_current_menu()) 
+            ui.show_menu_list(param.get_current_menu())
         end
         return
     elseif selected.type == menu_definitions.types.FUNCTION then
         local f = _G[selected.func_name]
         if f then f() end
         return
-    elseif selected.type == menu_definitions.types.FETCH then 
+    elseif selected.type == menu_definitions.types.FETCH then
         Handle_Generic_Fetch(selected.id)
-        return 
+        return
     end
 
     -- IDパターン別の処理
-    if id_str == 'collection_item_1' then 
+    if id_str == 'collection_item_1' then
         Handle_Mission_Encyclopedia()
-    elseif id_str == 'collection_item_5' then 
+    elseif id_str == 'collection_item_5' then
         Handle_Magic_Encyclopedia()
-    elseif id_str:find('magic_item_') then 
+    elseif id_str:find('magic_item_') then
         Handle_Magic_Group_Selection(id_str)
     elseif id_str:find('MAGIC_LEVEL_') then
         local g, mi, ma = id_str:match('MAGIC_LEVEL_(%d+)_(%d+)_(%d+)')
-        if g and mi and ma then 
-            Handle_Magic_Level_Selection(tonumber(g), tonumber(mi), tonumber(ma)) 
+        if g and mi and ma then
+            Handle_Magic_Level_Selection(tonumber(g), tonumber(mi), tonumber(ma))
         end
     elseif id_str:find('MAGIC_INFO_') then
         return
-    elseif id_str:find('MISSION_CAT_') then 
+    elseif id_str:find('MISSION_CAT_') then
         Handle_Mission_Category_Selection(selected.category_label, mission_definitions.missions[selected.category_key], selected.mission_results, selected.category_key)
         Refresh_Sub_Window()
-    elseif id_str:find('EMINENCE_CAT_') then 
+    elseif id_str:find('EMINENCE_CAT_') then
         Handle_Eminence_Category_Selection(selected.category_label, selected.items_def, selected.results, selected.category_id)
-    elseif id_str:find('EMINENCE_ITEM_') then 
-        if selected.status == 1 then 
+    elseif id_str:find('EMINENCE_ITEM_') then
+        if selected.status == 1 then
             param.set_eminence_confirm_dialog_open(true)
             param.set_eminence_confirm_selected_item(selected)
-            ui.create_eminence_confirm_dialog(selected.label) 
-        else 
-            ui.show_eminence_details(selected.data, selected.status) 
+            ui.create_eminence_confirm_dialog(selected.label)
+        else
+            ui.show_eminence_details(selected.data, selected.status)
         end
-    elseif id_str:find('RECIPE_ITEM_') then 
+    elseif id_str:find('RECIPE_ITEM_') then
         -- 未解放かつ素材が揃っている場合は解放処理を実行
         if selected.isOpen == 0 and selected.allMaterialsPossessed then
             Handle_Open_Recipe(selected)
         else
             -- それ以外は詳細を表示
-            menu_manager.enter_synthesis_sub_window_mode(selected.isOpen == 1 and 'full' or 'materials_only')
+            menu_manager.enter_synthesis_sub_window_mode((selected.isOpen == 1 and selected.allMaterialsPossessed) and 'full' or 'materials_only')
             ui.show_synthesis_details(selected.data)
         end
     elseif id_str:find('ITEM_RECIPE_LEVEL_') then
@@ -812,10 +934,10 @@ function Handle_Confirm()
         if ah_id and min_lvl and max_lvl then
             Fetch_And_Display_Item_Recipes(tonumber(ah_id), tonumber(min_lvl), tonumber(max_lvl), selected.label)
         end
-    elseif id_str == 'synthesis' then 
-        Handle_Synthesis_Menu() 
-    elseif id_str == 'synthesis_storage' then 
-        Handle_Synthesis_Storage() 
+    elseif id_str == 'synthesis' then
+        Handle_Synthesis_Menu()
+    elseif id_str == 'synthesis_storage' then
+        Handle_Synthesis_Storage()
     elseif id_str == 'item_list' or (current_menu and current_menu.is_item_list) then
         Handle_Item_List_Recipes(selected.id)
     elseif id_str == 'ITEM_LIST_RECIPES_ROOT' or (current_menu and current_menu.id == 'ITEM_LIST_RECIPES_ROOT') then
@@ -831,8 +953,8 @@ function Handle_Confirm()
         -- 合成倉庫（ストレージ）内のカテゴリ遷移
         -- 数値IDであっても、現在のメニューがストレージ関連ならカテゴリ展開を試みる
         Handle_Synthesis_Storage_Navigation(selected.id)
-    else 
-        Handle_Generic_Fetch(selected.id) 
+    else
+        Handle_Generic_Fetch(selected.id)
     end
 end
 
@@ -845,7 +967,7 @@ function Refresh_Sub_Window()
     ui.hide_synthesis_details(); ui.hide_mission_details(); ui.hide_eminence_details(); ui.hide_magic_details(); local id_str = tostring(selected.id)
     if id_str:find('RECIPE_ITEM_') then if selected.data then ui.show_synthesis_details(selected.data) end
     elseif id_str:find('MISSION_ITEM_') then ui.show_mission_details(selected.mission_name, selected.status, selected.category_key)
-    elseif id_str:find('MAGIC_INFO_') then 
+    elseif id_str:find('MAGIC_INFO_') then
         if selected.data then
             ui.show_magic_details(selected.data.Id, selected.data.Jobs, selected.data.Flag)
         end
@@ -855,7 +977,7 @@ end
 function Refresh_Current_Menu()
     local current = param.get_current_menu()
     if not current then return end
-    
+
     if current.id and current.id:find('ITEM_RECIPE_LEVEL_') then
         local ah_id, min_lvl, max_lvl = current.id:match('ITEM_RECIPE_LEVEL_(%d+)_(%d+)_(%d+)')
         if ah_id and min_lvl and max_lvl then
@@ -866,7 +988,7 @@ function Refresh_Current_Menu()
         Handle_Item_List_Recipes(current.id)
         return
     end
-    
+
     -- 他のメニュータイプ（在庫ベースなど）の更新
     local chara_id = param.get_chara_id() or windower.ffxi.get_player().id
     http_handler.fetch_synergy_inventory(chara_id, function(success, data)
@@ -915,16 +1037,16 @@ function Refresh_Menu_After_Inventory_Update(updated_cache)
     Refresh_Sub_Window()
 end
 
-windower.register_event('addon command', function(command, ...) 
+windower.register_event('addon command', function(command, ...)
     command = command and command:lower() or 'help'
     if command == 'open' then
         local main = menu_manager.get_main_menu(); param.set_menu_open(true); param.set_input_delay_frames(2); param.set_current_menu(main); ui.hide_indicator(); ui.show_menu_list(main); input_handler.block_game_input(); param.set_input_blocked(true); windower.send_command('keyboard_blockinput 1')
     elseif command == 'close' then Close_Menu()
-    elseif command == 'notify' then 
+    elseif command == 'notify' then
         param.set_has_notification(not param.get_has_notification())
         local has_notif = param.get_has_notification() or (param.get_navigation_exclamation() == 1)
         ui.update_notification(has_notif)
-        
+
         -- メインメニューが開いている場合はエミネンスのビックリマークを更新
         local current = param.get_current_menu()
         if param.get_menu_open() and current and current.id == 'MAIN_MENU' then
@@ -941,7 +1063,7 @@ end)
 windower.register_event('keyboard', function(dik, down, flags, blocked)
     if param.get_input_delay_frames() > 0 or not down then return true end
     local action = input_handler.process_key(dik)
-    
+
     if param.get_dialog_open() or param.get_craft_confirm_dialog_open() or param.get_eminence_confirm_dialog_open() or param.get_error_dialog_open() or param.get_success_dialog_open() or param.get_open_recipe_dialog_open() then
         if action == 'confirm' then
             if param.get_dialog_open() then
@@ -996,6 +1118,102 @@ windower.register_event('keyboard', function(dik, down, flags, blocked)
     end
 
     if not param.get_menu_open() then return false end
+
+    -- 合成サブウィンドウモード中の入力処理
+    if menu_manager.is_in_synthesis_sub_window_mode() then
+        local selected = menu_manager.get_selected_item()
+        if selected and selected.data then
+            local recipe = selected.data
+            
+            if action == 'up' or action == 'down' then
+                local max_index = 0
+                local active_window = param.get_active_sub_window()
+                
+                if active_window == 'nq_hq' then
+                    if recipe.result then max_index = max_index + 1 end
+                    if recipe.resultHQ1 then max_index = max_index + 1 end
+                    if recipe.resultHQ2 then max_index = max_index + 1 end
+                    if recipe.resultHQ3 then max_index = max_index + 1 end
+                elseif active_window == 'materials' then
+                    if recipe.crystal then max_index = max_index + 1 end
+                    if recipe.ingredient then max_index = max_index + #recipe.ingredient end
+                end
+                
+                menu_manager.move_sub_window_cursor(action, max_index)
+                ui.show_synthesis_details(recipe)
+                return true
+            elseif action == 'left' or action == 'right' then
+                if param.get_sub_window_mode() == 'full' then
+                    menu_manager.switch_active_sub_window()
+                    ui.show_synthesis_details(recipe)
+                end
+                return true
+            elseif action == 'cancel' then
+                menu_manager.exit_synthesis_sub_window_mode()
+                ui.show_synthesis_details(recipe)
+                return true
+            elseif action == 'confirm' then
+                local active_window = param.get_active_sub_window()
+                if active_window == 'nq_hq' then
+                    local nq_hq_index = param.get_nq_hq_cursor_index()
+                    local result_item = (nq_hq_index == 1) and recipe.result or (nq_hq_index == 2 and recipe.resultHQ1 or (nq_hq_index == 3 and recipe.resultHQ2 or recipe.resultHQ3))
+                    
+                    if result_item then
+                        local can_craft = false
+                        local error_message = nil
+                        
+                        if not selected.allMaterialsPossessed then
+                            error_message = messages.synthesis_menu.error.materials_missing
+                        else
+                            -- スキル判定
+                            if nq_hq_index == 1 then
+                                -- NQは素材があればOK
+                                can_craft = true
+                            else
+                                local player = windower.ffxi.get_player()
+                                if player and player.skills then
+                                    -- 最も高いスキルを選択して判定
+                                    local best_guild_id, best_skill_lvl = get_best_skill_info(recipe)
+                                    local skill_id = guild_id_to_skill_id_map[best_guild_id]
+                                    local current_skill = (skill_id and player.skills[skill_id]) or 0
+                                    local required_skill = best_skill_lvl
+                                    
+                                    if nq_hq_index == 2 then -- HQ1
+                                        if current_skill >= required_skill then can_craft = true else error_message = messages.synthesis_menu.error.skill_insufficient_hq1 end
+                                    elseif nq_hq_index == 3 then -- HQ2
+                                        if current_skill >= required_skill + 5 then can_craft = true else error_message = messages.synthesis_menu.error.skill_insufficient_hq2 end
+                                    elseif nq_hq_index == 4 then -- HQ3
+                                        if current_skill >= required_skill + 10 then can_craft = true else error_message = messages.synthesis_menu.error.skill_insufficient_hq3 end
+                                    end
+                                else
+                                    error_message = messages.synthesis_menu.error.skill_insufficient
+                                end
+                            end
+                        end
+                        
+                        if can_craft then
+                            param.set_craft_confirm_dialog_open(true)
+                            param.set_craft_confirm_recipe_data(recipe)
+                            param.set_craft_confirm_nq_hq_index(nq_hq_index)
+                            param.set_craft_confirm_item_name(result_item.name)
+                            param.set_craft_confirm_selected_button('no')
+                            ui.create_craft_confirm_dialog(result_item.name)
+                        else
+                            param.set_error_dialog_open(true)
+                            param.set_error_dialog_message(error_message)
+                            ui.create_error_dialog(param.get_error_dialog_message())
+                        end
+                    end
+                elseif active_window == 'materials' then
+                    -- 素材ウィンドウ側でのエンターは何もしない、またはNQ/HQ側へスイッチ
+                    menu_manager.switch_active_sub_window()
+                    ui.show_synthesis_details(recipe)
+                end
+                return true
+            end
+        end
+    end
+
     if action == 'up' then menu_manager.move_cursor(-1); ui.update_menu_display(param.get_current_menu()); Refresh_Sub_Window()
     elseif action == 'down' then menu_manager.move_cursor(1); ui.update_menu_display(param.get_current_menu()); Refresh_Sub_Window()
     elseif action == 'confirm' then Handle_Confirm()

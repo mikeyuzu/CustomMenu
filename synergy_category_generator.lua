@@ -180,7 +180,7 @@ function synergy_category_generator.generate_menu_data(synergy_inventory_items, 
             end
         else
             -- 見つからない場合はメインメニューに戻るか、エラー処理
-            if not tonumber(current_menu_id) then
+            if not tonumber(current_menu_id) and not tostring(current_menu_id):find('ITEM_RECIPE_LEVEL_') then
                 print(string.format("Warning: Menu ID '%s' not found, defaulting to main.", current_menu_id))
             end
             menu_to_generate = category_definitions.main

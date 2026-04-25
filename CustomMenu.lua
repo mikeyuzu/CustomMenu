@@ -15,7 +15,9 @@ local log_file = nil
 local function log_to_file(message)
     if not log_file then
         log_file = io.open(LOG_FILE_PATH, "a")
-        if not log_file then return end
+        if not log_file then
+            return
+        end
     end
     log_file:write(os.date("[%Y-%m-%d %H:%M:%S] ") .. tostring(message) .. "\n")
     log_file:flush()
@@ -81,13 +83,17 @@ end
 
 local function Handle_Magic_Level_Selection(group_index, level_min, level_max)
     local data = magic_group_data_cache[group_index]
-    if not data then return end
+    if not data then
+        return
+    end
 
     local filtered = {}
     for _, info in ipairs(data) do
         -- MinLevelが取得できない、あるいは0の場合は、Lv1として扱い最初のグループに表示させる
         local min_lvl = tonumber(info.MinLevel or info.minLevel) or 1
-        if min_lvl == 0 then min_lvl = 1 end
+        if min_lvl == 0 then
+            min_lvl = 1
+        end
 
         if min_lvl >= level_min and min_lvl <= level_max then
             table.insert(filtered, info)
@@ -115,7 +121,9 @@ local function Show_Magic_Level_Submenus(group_index, data)
     local unlearned_count = 0
     for _, info in ipairs(data) do
         local flag = info.Flag or info.flag or 0
-        if flag == 0 then unlearned_count = unlearned_count + 1 end
+        if flag == 0 then
+            unlearned_count = unlearned_count + 1
+        end
     end
 
     local menu_items = {
@@ -147,10 +155,14 @@ end
 
 local function Handle_Magic_Group_Selection(group_id_str)
     local group_index = tonumber(group_id_str:match('magic_item_(%d+)'))
-    if not group_index then return end
+    if not group_index then
+        return
+    end
 
     local chara_id = param.get_chara_id()
-    if not chara_id then return end
+    if not chara_id then
+        return
+    end
 
     http_handler.fetch_magic_group_collection_list(chara_id, group_index - 1, function(success, data, error_message)
         if success and data then
@@ -223,9 +235,11 @@ end
 -- ナビゲーション表示更新
 local function updateNavigationDisplay()
     local player = windower.ffxi.get_player()
-    if not player then return end
-    if player.status == 4 then
-        ui.hide_navigation()
+    if not player then
+        return
+    end
+    if player.status == 4 or param.get_menu_open() then
+        if player.status == 4 then ui.hide_navigation() end
         return
     end
 
@@ -301,7 +315,10 @@ local function Handle_Mission_Category_Selection(category_label, missions, missi
             for _, m_name in ipairs(chapter.missions) do
                 total_count = total_count + 1
                 local status = mission_results[total_count] or 0
-                if status == -1 then completed_count = completed_count + 1; chapter_completed = chapter_completed + 1 end
+                if status == -1 then
+                    completed_count = completed_count + 1
+                    chapter_completed = chapter_completed + 1
+                end
             end
             local percentage = (chapter_completed / chapter_total) * 100
             table.insert(menu_items, { id = 'MISSION_CHAPTER_' .. i, label = string.format("%s %d%%", chapter.title, percentage), missions = chapter.missions, mission_offset = total_count - chapter_total, mission_results = mission_results, category_key = category_key })
@@ -311,7 +328,9 @@ local function Handle_Mission_Category_Selection(category_label, missions, missi
             total_count = total_count + 1
             local status = mission_results[i] or 0
             local label = (status >= 0) and messages.mission_status.unknown or m_name
-            if status == -1 then completed_count = completed_count + 1 end
+            if status == -1 then
+                completed_count = completed_count + 1
+            end
             table.insert(menu_items, { id = 'MISSION_ITEM_' .. i, label = label, mission_name = m_name, status = status, category_key = category_key })
         end
     end
@@ -324,7 +343,9 @@ end
 -- ミッション図鑑表示
 local function Handle_Mission_Encyclopedia()
     local player = windower.ffxi.get_player()
-    if not player or not player.id then return end
+    if not player or not player.id then
+        return
+    end
     param.set_chara_id(player.id)
     http_handler.fetch_mission_list(player.id, function(success, data, error_message)
         if success and data then
@@ -338,12 +359,18 @@ local function Handle_Mission_Encyclopedia()
                     for _, chapter in ipairs(m_list) do
                         for _, _ in ipairs(chapter.missions) do
                             total_count = total_count + 1
-                            if m_results[total_count] == -1 then completed_count = completed_count + 1 end
+                            if m_results[total_count] == -1 then
+                                completed_count = completed_count + 1
+                            end
                         end
                     end
                 else
                     total_count = #m_list
-                    for i = 1, total_count do if m_results[i] == -1 then completed_count = completed_count + 1 end end
+                    for i = 1, total_count do
+                        if m_results[i] == -1 then
+                            completed_count = completed_count + 1
+                        end
+                    end
                 end
                 local percentage = total_count > 0 and (completed_count / total_count) * 100 or 0
                 table.insert(menu_items, { id = 'MISSION_CAT_' .. cat.id, label = string.format("%s %d%%", cat.label, percentage), category_key = cat.key, category_label = cat.label, mission_results = m_results })
@@ -358,7 +385,9 @@ end
 -- 魔法図鑑表示
 local function Handle_Magic_Encyclopedia()
     local player = windower.ffxi.get_player()
-    if not player or not player.id then return end
+    if not player or not player.id then
+        return
+    end
     param.set_chara_id(player.id)
     http_handler.fetch_magic_collection_list(player.id, function(success, data, error_message)
         if success and data then
@@ -396,7 +425,9 @@ end
 
 function Handle_Synthesis_Storage()
     local player = windower.ffxi.get_player()
-    if not player or not player.id then return end
+    if not player or not player.id then
+        return
+    end
     param.set_chara_id(player.id)
     http_handler.fetch_synergy_inventory(player.id, function(success, data, error_message)
         if success and data then
@@ -417,7 +448,9 @@ end
 
 function Handle_Collection_Menu()
     local player = windower.ffxi.get_player()
-    if not player or not player.id then return end
+    if not player or not player.id then
+        return
+    end
     param.set_chara_id(player.id)
     http_handler.fetch_collection_list(player.id, function(success, data, error_message)
         if success and data then
@@ -451,27 +484,48 @@ local function Handle_Eminence_Category_Selection(category_label, items_def, emi
 end
 
 local function has_achieved(results)
-    if not results then return false end
-    for _, status in pairs(results) do if status == 1 then return true end end
+    if not results then
+        return false
+    end
+    for _, status in pairs(results) do
+        if status == 1 then
+            return true
+        end
+    end
     return false
 end
 
 function Close_Eminence_Confirm_Dialog()
-    param.set_eminence_confirm_dialog_open(false); param.set_eminence_confirm_selected_item(nil); param.set_eminence_confirm_selected_button('no'); ui.destroy_eminence_confirm_dialog()
+    param.set_eminence_confirm_dialog_open(false)
+    param.set_eminence_confirm_selected_item(nil)
+    param.set_eminence_confirm_selected_button('no')
+    ui.destroy_eminence_confirm_dialog()
 end
 
 function Handle_Eminence_Reward_Receive()
     local item = param.get_eminence_confirm_selected_item()
     local chara_id = windower.ffxi.get_player().id
-    if not item or not chara_id then Close_Eminence_Confirm_Dialog(); return end
+    if not item or not chara_id then
+        Close_Eminence_Confirm_Dialog()
+        return
+    end
     http_handler.receive_eminence_reward(chara_id, item.category_id, item.item_index, function(success, data, error_message)
         if success then
             local destination = tonumber(data) or 0
             local msg = (destination == 1) and messages.eminence_menu.receive_success_key_item or (destination == 2 and messages.eminence_menu.receive_success_magic or messages.eminence_menu.receive_success_delivery)
-            if item.results then item.results[item.item_index + 1] = 2 end
+            if item.results then
+                item.results[item.item_index + 1] = 2
+            end
             item.status = 2
             local current_menu = param.get_current_menu()
-            if current_menu and current_menu.items then for _, m_item in ipairs(current_menu.items) do if m_item.id == item.id then m_item.status = 2; break end end end
+            if current_menu and current_menu.items then
+                for _, m_item in ipairs(current_menu.items) do
+                    if m_item.id == item.id then
+                        m_item.status = 2
+                        break
+                    end
+                end
+            end
             local eminence_cache = param.get_eminence_data_cache()
             if eminence_cache then
                 local mission_results = eminence_cache.Mission or eminence_cache.mission or {}
@@ -480,9 +534,13 @@ function Handle_Eminence_Reward_Receive()
                 local any_achieved = has_achieved(mission_results) or has_achieved(face_results) or has_achieved(area_results)
                 ui.update_notification(any_achieved)
             end
-            ui.create_success_dialog(msg); param.set_success_dialog_open(true); ui.update_menu_display(param.get_current_menu()); ui.show_eminence_details(item.data, item.status)
+            ui.create_success_dialog(msg)
+            param.set_success_dialog_open(true)
+            ui.update_menu_display(param.get_current_menu())
+            ui.show_eminence_details(item.data, item.status)
         else
-            param.set_error_dialog_open(true); param.set_error_dialog_message("報酬の受取に失敗しました: " .. (error_message or "不明"))
+            param.set_error_dialog_open(true)
+            param.set_error_dialog_message("報酬の受取に失敗しました: " .. (error_message or "不明"))
             ui.create_error_dialog(param.get_error_dialog_message())
         end
         Close_Eminence_Confirm_Dialog()
@@ -491,7 +549,9 @@ end
 
 function Handle_Eminence_Menu()
     local player = windower.ffxi.get_player()
-    if not player or not player.id then return end
+    if not player or not player.id then
+        return
+    end
     http_handler.fetch_eminence_list(player.id, function(success, data, error_message)
         if success and data then
             param.set_eminence_data_cache(data)
@@ -549,7 +609,8 @@ function Fetch_And_Display_Item_Recipes(ah_id, min_lvl, max_lvl, title)
                     if all_possessed and recipe.ingredient then
                         for _, ing in ipairs(recipe.ingredient) do
                             if (ing.possession or 0) < (ing.quantity or 1) then
-                                all_possessed = false; break
+                                all_possessed = false
+                                break
                             end
                         end
                     end
@@ -599,7 +660,10 @@ function Handle_Item_List_Recipes(menu_id)
         local ah_id = tonumber(ah_id_str)
         local min_lvl = tonumber(min_lvl_str)
         local max_lvl = tonumber(max_lvl_str)
-        if ah_id and min_lvl and max_lvl then Fetch_And_Display_Item_Recipes(ah_id, min_lvl, max_lvl, generated_menu.title); return end
+        if ah_id and min_lvl and max_lvl then
+            Fetch_And_Display_Item_Recipes(ah_id, min_lvl, max_lvl, generated_menu.title)
+            return
+        end
     end
 
     local current = param.get_current_menu()
@@ -611,43 +675,76 @@ function Handle_Item_List_Recipes(menu_id)
     end
 
     submenu.is_item_list = true
-    param.set_current_menu(submenu); ui.show_menu_list(param.get_current_menu())
+    param.set_current_menu(submenu)
+    ui.show_menu_list(param.get_current_menu())
 end
 
 function Handle_Generic_Fetch(menu_id)
     http_handler.fetch_menu_data(menu_id, function(success, data)
-        if success then param.set_current_menu(menu_manager.create_submenu(data)); ui.show_menu_list(param.get_current_menu()) end
+        if success then
+            param.set_current_menu(menu_manager.create_submenu(data))
+            ui.show_menu_list(param.get_current_menu())
+        end
     end)
 end
 
 windower.register_event('load', function()
-    print('CustomMenu loaded'); ui.initialize(); menu_manager.initialize()
+    print('CustomMenu loaded')
+    ui.initialize()
+    menu_manager.initialize()
     log_to_file("CustomMenu loaded.")
 end)
 
 windower.register_event('unload', function()
     ui.cleanup()
-    if log_file then log_file:close(); log_file = nil end
+    if log_file then
+        log_file:close()
+        log_file = nil
+    end
 end)
 
 function Close_Menu()
-    param.set_menu_open(false); param.set_current_menu(nil); ui.hide_menu_list(); ui.hide_synthesis_details(); ui.hide_mission_details(); ui.hide_eminence_details(); ui.show_indicator(); menu_manager.exit_synthesis_sub_window_mode()
-    if param.get_input_blocked() then input_handler.unblock_game_input(); param.set_input_blocked(false) end
+    param.set_menu_open(false)
+    param.set_current_menu(nil)
+    ui.hide_menu_list()
+    ui.hide_synthesis_details()
+    ui.hide_mission_details()
+    ui.hide_eminence_details()
+    ui.show_indicator()
+    menu_manager.exit_synthesis_sub_window_mode()
+    if param.get_input_blocked() then
+        input_handler.unblock_game_input()
+        param.set_input_blocked(false)
+    end
     windower.send_command('keyboard_blockinput 0')
 end
 
 function Close_Dialog()
-    param.set_dialog_open(false); param.set_dialog_item(nil); param.set_dialog_withdraw_quantity(0); param.set_dialog_selected_button('cancel'); ui.destroy_withdrawal_dialog()
+    param.set_dialog_open(false)
+    param.set_dialog_item(nil)
+    param.set_dialog_withdraw_quantity(0)
+    param.set_dialog_selected_button('cancel')
+    ui.destroy_withdrawal_dialog()
 end
 
 function Handle_Withdraw()
-    local item = param.get_dialog_item(); local chara_id = param.get_chara_id(); local usenum = param.get_dialog_withdraw_quantity()
-    if not item or not chara_id or usenum <= 0 then Close_Dialog(); return end
+    local item = param.get_dialog_item()
+    local chara_id = param.get_chara_id()
+    local usenum = param.get_dialog_withdraw_quantity()
+    if not item or not chara_id or usenum <= 0 then
+        Close_Dialog()
+        return
+    end
     http_handler.remove_synergy_inventory_item(chara_id, item.id, item.subId, usenum, item.quantity, function(success, message)
         Close_Dialog()
         if success then
-            ui.create_success_dialog(string.format(messages.retrieval_success, item.name)); param.set_success_dialog_open(true)
-            http_handler.fetch_synergy_inventory(chara_id, function(s, d) if s then Refresh_Menu_After_Inventory_Update(d) end end)
+            ui.create_success_dialog(string.format(messages.retrieval_success, item.name))
+            param.set_success_dialog_open(true)
+            http_handler.fetch_synergy_inventory(chara_id, function(s, d)
+                if s then
+                    Refresh_Menu_After_Inventory_Update(d)
+                end
+            end)
         else
             print('ERROR: ' .. item.name .. ' の引き出しに失敗しました: ' .. (message or '不明'))
         end
@@ -655,11 +752,18 @@ function Handle_Withdraw()
 end
 
 function Close_Craft_Confirm_Dialog()
-    param.set_craft_confirm_dialog_open(false); param.set_craft_confirm_item_name(nil); param.set_craft_confirm_selected_button('no'); param.set_craft_confirm_recipe_data(nil); param.set_craft_confirm_nq_hq_index(0); ui.destroy_craft_confirm_dialog()
+    param.set_craft_confirm_dialog_open(false)
+    param.set_craft_confirm_item_name(nil)
+    param.set_craft_confirm_selected_button('no')
+    param.set_craft_confirm_recipe_data(nil)
+    param.set_craft_confirm_nq_hq_index(0)
+    ui.destroy_craft_confirm_dialog()
 end
 
 function Close_Error_Dialog()
-    param.set_error_dialog_open(false); param.set_error_dialog_message(nil); ui.destroy_error_dialog()
+    param.set_error_dialog_open(false)
+    param.set_error_dialog_message(nil)
+    ui.destroy_error_dialog()
 end
 
 -- 正確なスキルIDマップ (ユーザー提供の定義に基づく)
@@ -725,7 +829,7 @@ local function get_best_skill_info(recipe_data)
 
         max_lvl = main_lvl
         best_guild_id = main_gid
-        
+
         for i = 1, 3 do
             local sg_id = get_gid(recipe_data, i)
             local sl_lvl = get_lvl(recipe_data, i)
@@ -739,7 +843,7 @@ local function get_best_skill_info(recipe_data)
             end
         end
     end
-    
+
     return best_guild_id, max_lvl
 end
 
@@ -747,10 +851,14 @@ function Handle_Craft_Synthesis()
     local chara_id = param.get_chara_id() or windower.ffxi.get_player().id
     local recipe_data = param.get_craft_confirm_recipe_data()
     local nq_hq_index = param.get_craft_confirm_nq_hq_index()
-    
-    if not chara_id or not recipe_data or not nq_hq_index then return end
+
+    if not chara_id or not recipe_data or not nq_hq_index then
+        return
+    end
     local result_item = (nq_hq_index == 1) and recipe_data.result or (nq_hq_index == 2 and recipe_data.resultHQ1 or (nq_hq_index == 3 and recipe_data.resultHQ2 or recipe_data.resultHQ3))
-    if not result_item then return end
+    if not result_item then
+        return
+    end
 
     -- 最も高いスキルを選択
     local best_guild_id, _ = get_best_skill_info(recipe_data)
@@ -770,29 +878,34 @@ function Handle_Craft_Synthesis()
                     end
                 end
             end
-            
+
             local item_name = result_item.name or "アイテム"
             local current_level = (data and data.skillLevel) or 0
             local destination = (data and data.destination) or 'storage'
-            
+
             local msg_template = (destination == 'post') 
                 and messages.synthesis_menu.synthesis_success_post 
                 or messages.synthesis_menu.synthesis_success_material_storage
-            
+
             local success_msg = string.format(msg_template, item_name, skill_name, current_level)
-            
-            ui.create_success_dialog(success_msg); param.set_success_dialog_open(true)
+
+            ui.create_success_dialog(success_msg)
+            param.set_success_dialog_open(true)
             menu_manager.exit_synthesis_sub_window_mode()
             http_handler.fetch_synergy_inventory(chara_id, function(s, d) if s then Refresh_Menu_After_Inventory_Update(d) end end)
         else
-            param.set_error_dialog_open(true); param.set_error_dialog_message("失敗: " .. (error_message or "不明")); ui.create_error_dialog(param.get_error_dialog_message())
+            param.set_error_dialog_open(true)
+            param.set_error_dialog_message("失敗: " .. (error_message or "不明"))
+            ui.create_error_dialog(param.get_error_dialog_message())
         end
     end)
 end
 
 function Handle_Synthesis_Storage_Navigation(menu_id)
     local inventory_cache = param.get_synergy_inventory_cache()
-    if not inventory_cache then return end
+    if not inventory_cache then
+        return
+    end
 
     local generated_menu = synergy_category_generator.generate_menu_data(inventory_cache, menu_id)
 
@@ -870,7 +983,9 @@ end
 
 function Handle_Confirm()
     local selected = menu_manager.get_selected_item()
-    if not selected then return end
+    if not selected then
+        return
+    end
 
     local id_str = tostring(selected.id)
     local current_menu = param.get_current_menu()
@@ -886,7 +1001,9 @@ function Handle_Confirm()
         return
     elseif selected.type == menu_definitions.types.FUNCTION then
         local f = _G[selected.func_name]
-        if f then f() end
+        if f then
+            f()
+        end
         return
     elseif selected.type == menu_definitions.types.FETCH then
         Handle_Generic_Fetch(selected.id)
@@ -959,24 +1076,51 @@ function Handle_Confirm()
 end
 
 function Handle_Cancel()
-    if param.get_dialog_open() then Close_Dialog() elseif menu_manager.can_go_back() then param.set_current_menu(menu_manager.go_back()); ui.hide_synthesis_details(); ui.hide_mission_details(); ui.hide_eminence_details(); ui.hide_magic_details(); ui.show_menu_list(param.get_current_menu()); Refresh_Sub_Window() else Close_Menu() end
+    if param.get_dialog_open() then
+        Close_Dialog()
+    elseif menu_manager.can_go_back() then
+        param.set_current_menu(menu_manager.go_back())
+        ui.hide_synthesis_details()
+        ui.hide_mission_details()
+        ui.hide_eminence_details()
+        ui.hide_magic_details()
+        ui.show_menu_list(param.get_current_menu())
+        Refresh_Sub_Window()
+    else
+        Close_Menu()
+    end
 end
 
 function Refresh_Sub_Window()
-    local selected = menu_manager.get_selected_item(); if not selected then return end
-    ui.hide_synthesis_details(); ui.hide_mission_details(); ui.hide_eminence_details(); ui.hide_magic_details(); local id_str = tostring(selected.id)
-    if id_str:find('RECIPE_ITEM_') then if selected.data then ui.show_synthesis_details(selected.data) end
-    elseif id_str:find('MISSION_ITEM_') then ui.show_mission_details(selected.mission_name, selected.status, selected.category_key)
+    local selected = menu_manager.get_selected_item()
+    if not selected then
+        return
+    end
+    ui.hide_synthesis_details()
+    ui.hide_mission_details()
+    ui.hide_eminence_details()
+    ui.hide_magic_details()
+    local id_str = tostring(selected.id)
+    if id_str:find('RECIPE_ITEM_') then
+        if selected.data then
+            ui.show_synthesis_details(selected.data)
+        end
+    elseif id_str:find('MISSION_ITEM_') then
+        ui.show_mission_details(selected.mission_name, selected.status, selected.category_key)
     elseif id_str:find('MAGIC_INFO_') then
         if selected.data then
             ui.show_magic_details(selected.data.Id, selected.data.Jobs, selected.data.Flag)
         end
-    elseif id_str:find('EMINENCE_ITEM_') then ui.show_eminence_details(selected.data, selected.status) end
+    elseif id_str:find('EMINENCE_ITEM_') then
+        ui.show_eminence_details(selected.data, selected.status)
+    end
 end
 
 function Refresh_Current_Menu()
     local current = param.get_current_menu()
-    if not current then return end
+    if not current then
+        return
+    end
 
     if current.id and current.id:find('ITEM_RECIPE_LEVEL_') then
         local ah_id, min_lvl, max_lvl = current.id:match('ITEM_RECIPE_LEVEL_(%d+)_(%d+)_(%d+)')
@@ -1001,7 +1145,9 @@ end
 function Refresh_Menu_After_Inventory_Update(updated_cache)
     param.set_synergy_inventory_cache(updated_cache)
     local current = param.get_current_menu()
-    if not current then return end
+    if not current then
+        return
+    end
 
     local generated = nil
     if current.id and current.id:find('STORAGE_ITEM_LIST_') then
@@ -1040,8 +1186,17 @@ end
 windower.register_event('addon command', function(command, ...)
     command = command and command:lower() or 'help'
     if command == 'open' then
-        local main = menu_manager.get_main_menu(); param.set_menu_open(true); param.set_input_delay_frames(2); param.set_current_menu(main); ui.hide_indicator(); ui.show_menu_list(main); input_handler.block_game_input(); param.set_input_blocked(true); windower.send_command('keyboard_blockinput 1')
-    elseif command == 'close' then Close_Menu()
+        local main = menu_manager.get_main_menu()
+        param.set_menu_open(true)
+        param.set_input_delay_frames(2)
+        param.set_current_menu(main)
+        ui.hide_indicator()
+        ui.show_menu_list(main)
+        input_handler.block_game_input()
+        param.set_input_blocked(true)
+        windower.send_command('keyboard_blockinput 1')
+    elseif command == 'close' then
+        Close_Menu()
     elseif command == 'notify' then
         param.set_has_notification(not param.get_has_notification())
         local has_notif = param.get_has_notification() or (param.get_navigation_exclamation() == 1)
@@ -1061,33 +1216,54 @@ windower.register_event('addon command', function(command, ...)
 end)
 
 windower.register_event('keyboard', function(dik, down, flags, blocked)
-    if param.get_input_delay_frames() > 0 or not down then return true end
+    if param.get_input_delay_frames() > 0 or not down then
+        return true
+    end
     local action = input_handler.process_key(dik)
 
     if param.get_dialog_open() or param.get_craft_confirm_dialog_open() or param.get_eminence_confirm_dialog_open() or param.get_error_dialog_open() or param.get_success_dialog_open() or param.get_open_recipe_dialog_open() then
         if action == 'confirm' then
             if param.get_dialog_open() then
-                if param.get_dialog_selected_button() == 'withdraw' then Handle_Withdraw() else Close_Dialog() end
+                if param.get_dialog_selected_button() == 'withdraw' then
+                    Handle_Withdraw() else Close_Dialog()
+                end
             elseif param.get_craft_confirm_dialog_open() then
-                if param.get_craft_confirm_selected_button() == 'yes' then Handle_Craft_Synthesis() end
+                if param.get_craft_confirm_selected_button() == 'yes' then
+                    Handle_Craft_Synthesis()
+                end
                 Close_Craft_Confirm_Dialog()
             elseif param.get_eminence_confirm_dialog_open() then
-                if param.get_eminence_confirm_selected_button() == 'yes' then Handle_Eminence_Reward_Receive() else Close_Eminence_Confirm_Dialog() end
+                if param.get_eminence_confirm_selected_button() == 'yes' then
+                    Handle_Eminence_Reward_Receive()
+                else
+                    Close_Eminence_Confirm_Dialog()
+                end
             elseif param.get_error_dialog_open() then
                 Close_Error_Dialog()
             elseif param.get_success_dialog_open() then
-                ui.destroy_success_dialog(); param.set_success_dialog_open(false)
+                ui.destroy_success_dialog()
+                param.set_success_dialog_open(false)
             elseif param.get_open_recipe_dialog_open() then
-                ui.destroy_open_recipe_dialog(); param.set_open_recipe_dialog_open(false)
+                ui.destroy_open_recipe_dialog()
+                param.set_open_recipe_dialog_open(false)
                 Refresh_Current_Menu()
             end
         elseif action == 'cancel' then
-            if param.get_dialog_open() then Close_Dialog()
-            elseif param.get_craft_confirm_dialog_open() then Close_Craft_Confirm_Dialog()
-            elseif param.get_eminence_confirm_dialog_open() then Close_Eminence_Confirm_Dialog()
-            elseif param.get_error_dialog_open() then Close_Error_Dialog()
-            elseif param.get_success_dialog_open() then ui.destroy_success_dialog(); param.set_success_dialog_open(false)
-            elseif param.get_open_recipe_dialog_open() then ui.destroy_open_recipe_dialog(); param.set_open_recipe_dialog_open(false); Refresh_Current_Menu() end
+            if param.get_dialog_open() then
+                Close_Dialog()
+            elseif param.get_craft_confirm_dialog_open() then
+                Close_Craft_Confirm_Dialog()
+            elseif param.get_eminence_confirm_dialog_open() then
+                Close_Eminence_Confirm_Dialog()
+            elseif param.get_error_dialog_open() then
+                Close_Error_Dialog()
+            elseif param.get_success_dialog_open() then
+                ui.destroy_success_dialog()
+                param.set_success_dialog_open(false)
+            elseif param.get_open_recipe_dialog_open() then
+                ui.destroy_open_recipe_dialog()
+                param.set_open_recipe_dialog_open(false)
+                Refresh_Current_Menu() end
         elseif action == 'left' or action == 'right' then
             if param.get_dialog_open() then
                 param.set_dialog_selected_button(param.get_dialog_selected_button() == 'cancel' and 'withdraw' or 'cancel')
@@ -1117,7 +1293,9 @@ windower.register_event('keyboard', function(dik, down, flags, blocked)
         return true
     end
 
-    if not param.get_menu_open() then return false end
+    if not param.get_menu_open() then
+        return false
+    end
 
     -- 合成サブウィンドウモード中の入力処理
     if menu_manager.is_in_synthesis_sub_window_mode() then
@@ -1130,15 +1308,27 @@ windower.register_event('keyboard', function(dik, down, flags, blocked)
                 local active_window = param.get_active_sub_window()
                 
                 if active_window == 'nq_hq' then
-                    if recipe.result then max_index = max_index + 1 end
-                    if recipe.resultHQ1 then max_index = max_index + 1 end
-                    if recipe.resultHQ2 then max_index = max_index + 1 end
-                    if recipe.resultHQ3 then max_index = max_index + 1 end
+                    if recipe.result then
+                        max_index = max_index + 1
+                    end
+                    if recipe.resultHQ1 then
+                        max_index = max_index + 1
+                    end
+                    if recipe.resultHQ2 then
+                        max_index = max_index + 1
+                    end
+                    if recipe.resultHQ3 then
+                        max_index = max_index + 1
+                    end
                 elseif active_window == 'materials' then
-                    if recipe.crystal then max_index = max_index + 1 end
-                    if recipe.ingredient then max_index = max_index + #recipe.ingredient end
+                    if recipe.crystal then
+                        max_index = max_index + 1
+                    end
+                    if recipe.ingredient then
+                        max_index = max_index + #recipe.ingredient
+                    end
                 end
-                
+
                 menu_manager.move_sub_window_cursor(action, max_index)
                 ui.show_synthesis_details(recipe)
                 return true
@@ -1179,11 +1369,19 @@ windower.register_event('keyboard', function(dik, down, flags, blocked)
                                     local required_skill = best_skill_lvl
                                     
                                     if nq_hq_index == 2 then -- HQ1
-                                        if current_skill >= required_skill then can_craft = true else error_message = messages.synthesis_menu.error.skill_insufficient_hq1 end
+                                        if current_skill >= required_skill then
+                                            can_craft = true else error_message = messages.synthesis_menu.error.skill_insufficient_hq1
+                                        end
                                     elseif nq_hq_index == 3 then -- HQ2
-                                        if current_skill >= required_skill + 5 then can_craft = true else error_message = messages.synthesis_menu.error.skill_insufficient_hq2 end
+                                        if current_skill >= required_skill + 5 then
+                                            can_craft = true
+                                        else
+                                            error_message = messages.synthesis_menu.error.skill_insufficient_hq2
+                                        end
                                     elseif nq_hq_index == 4 then -- HQ3
-                                        if current_skill >= required_skill + 10 then can_craft = true else error_message = messages.synthesis_menu.error.skill_insufficient_hq3 end
+                                        if current_skill >= required_skill + 10 then
+                                            can_craft = true else error_message = messages.synthesis_menu.error.skill_insufficient_hq3
+                                        end
                                     end
                                 else
                                     error_message = messages.synthesis_menu.error.skill_insufficient
@@ -1214,29 +1412,54 @@ windower.register_event('keyboard', function(dik, down, flags, blocked)
         end
     end
 
-    if action == 'up' then menu_manager.move_cursor(-1); ui.update_menu_display(param.get_current_menu()); Refresh_Sub_Window()
-    elseif action == 'down' then menu_manager.move_cursor(1); ui.update_menu_display(param.get_current_menu()); Refresh_Sub_Window()
-    elseif action == 'confirm' then Handle_Confirm()
-    elseif action == 'cancel' then Handle_Cancel()
-    elseif action == 'menu' then Close_Menu() end
+    if action == 'up' then
+        menu_manager.move_cursor(-1)
+        ui.update_menu_display(param.get_current_menu())
+        Refresh_Sub_Window()
+    elseif action == 'down' then
+        menu_manager.move_cursor(1)
+        ui.update_menu_display(param.get_current_menu())
+        Refresh_Sub_Window()
+    elseif action == 'confirm' then
+        Handle_Confirm()
+    elseif action == 'cancel' then
+        Handle_Cancel()
+    elseif action == 'menu' then
+        Close_Menu()
+    end
     return true
 end)
 
 local last_visibility_state = false
 windower.register_event('prerender', function()
-    if param.get_input_delay_frames() > 0 then param.set_input_delay_frames(param.get_input_delay_frames() - 1) end
-    local player = windower.ffxi.get_player(); if not player then return end
-    local current_time = os.clock(); local interval = settings.get('navigation.update_interval') or 1
+    if param.get_input_delay_frames() > 0 then
+        param.set_input_delay_frames(param.get_input_delay_frames() - 1)
+    end
+    local player = windower.ffxi.get_player()
+    if not player then
+        return
+    end
+    local current_time = os.clock()
+    local interval = settings.get('navigation.update_interval') or 1
     if current_time - last_nav_update >= interval then
-        checkNavigationInfoChange(); updateNavigationDisplay(); last_nav_update = current_time
+        checkNavigationInfoChange()
+        updateNavigationDisplay()
+        last_nav_update = current_time
     end
     local should_be_visible = (player.status ~= 4)
     if should_be_visible ~= last_visibility_state then
-        if not should_be_visible then ui.hide_all() else ui.refresh_visibility() end
+        if not should_be_visible then
+            ui.hide_all() else ui.refresh_visibility()
+        end
         last_visibility_state = should_be_visible
     end
 end)
 
 windower.register_event('login', function() updateNavigationDisplay() end)
-windower.register_event('zone change', function() updateNavigationInfo(); updateNavigationDisplay() end)
-windower.register_event('status change', function(new) if new == 4 then ui.hide_all() else ui.refresh_visibility() end end)
+windower.register_event('zone change', function() updateNavigationInfo()
+updateNavigationDisplay() end)
+windower.register_event('status change', function(new)
+    if new == 4 then
+        ui.hide_all() else ui.refresh_visibility()
+    end
+end)

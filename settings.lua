@@ -34,7 +34,7 @@ local defaults = {
         bg = {alpha = 200, red = 0, green = 0, blue = 0},
         text = {size = 12, font = 'MS Gothic', alpha = 255, red = 255, green = 255, blue = 255},
         flags = {bold = true, draggable = true},
-        update_interval = 1,
+        update_interval = 2,
         enabled = true
     }
 }

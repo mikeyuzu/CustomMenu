@@ -740,11 +740,7 @@ function Handle_Withdraw()
         if success then
             ui.create_success_dialog(string.format(messages.retrieval_success, item.name))
             param.set_success_dialog_open(true)
-            http_handler.fetch_synergy_inventory(chara_id, function(s, d)
-                if s then
-                    Refresh_Menu_After_Inventory_Update(d)
-                end
-            end)
+            Refresh_Current_Menu()
         else
             print('ERROR: ' .. item.name .. ' の引き出しに失敗しました: ' .. (message or '不明'))
         end
@@ -892,7 +888,7 @@ function Handle_Craft_Synthesis()
             ui.create_success_dialog(success_msg)
             param.set_success_dialog_open(true)
             menu_manager.exit_synthesis_sub_window_mode()
-            http_handler.fetch_synergy_inventory(chara_id, function(s, d) if s then Refresh_Menu_After_Inventory_Update(d) end end)
+            Refresh_Current_Menu()
         else
             param.set_error_dialog_open(true)
             param.set_error_dialog_message("失敗: " .. (error_message or "不明"))

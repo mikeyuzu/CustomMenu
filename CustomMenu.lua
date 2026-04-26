@@ -117,27 +117,46 @@ end
 local function Show_Magic_Level_Submenus(group_index, data)
     magic_group_data_cache[group_index] = data
 
-    -- デバッグログ: APIから取得したデータの統計
-    local unlearned_count = 0
-    for _, info in ipairs(data) do
-        local flag = info.Flag or info.flag or 0
-        if flag == 0 then
-            unlearned_count = unlearned_count + 1
+    local ranges = {
+        { min = 1, max = 10 },
+        { min = 11, max = 20 },
+        { min = 21, max = 30 },
+        { min = 31, max = 40 },
+        { min = 41, max = 50 },
+        { min = 51, max = 60 },
+        { min = 61, max = 70 },
+        { min = 71, max = 80 },
+        { min = 81, max = 90 },
+        { min = 91, max = 99 },
+    }
+
+    local menu_items = {}
+    for _, range in ipairs(ranges) do
+        local total = 0
+        local learned = 0
+        for _, info in ipairs(data) do
+            local min_lvl = tonumber(info.MinLevel or info.minLevel) or 1
+            if min_lvl == 0 then min_lvl = 1 end
+
+            if min_lvl >= range.min and min_lvl <= range.max then
+                total = total + 1
+                if (info.Flag or info.flag or 0) == 1 then
+                    learned = learned + 1
+                end
+            end
         end
+
+        local percentage = total > 0 and (learned / total) * 100 or 0
+        local label = string.format("Lv%d～Lv%d %0.2f%%", range.min, range.max, percentage)
+
+        table.insert(menu_items, {
+            id = string.format('MAGIC_LEVEL_%d_%d_%d', group_index, range.min, range.max),
+            label = label,
+            min = range.min,
+            max = range.max
+        })
     end
 
-    local menu_items = {
-        { id = 'MAGIC_LEVEL_' .. group_index .. '_1_10', label = "Lv1～Lv10", min = 1, max = 10 },
-        { id = 'MAGIC_LEVEL_' .. group_index .. '_11_20', label = "Lv11～Lv20", min = 11, max = 20 },
-        { id = 'MAGIC_LEVEL_' .. group_index .. '_21_30', label = "Lv21～Lv30", min = 21, max = 30 },
-        { id = 'MAGIC_LEVEL_' .. group_index .. '_31_40', label = "Lv31～Lv40", min = 31, max = 40 },
-        { id = 'MAGIC_LEVEL_' .. group_index .. '_41_50', label = "Lv41～Lv50", min = 41, max = 50 },
-        { id = 'MAGIC_LEVEL_' .. group_index .. '_51_60', label = "Lv51～Lv60", min = 51, max = 60 },
-        { id = 'MAGIC_LEVEL_' .. group_index .. '_61_70', label = "Lv61～Lv70", min = 61, max = 70 },
-        { id = 'MAGIC_LEVEL_' .. group_index .. '_71_80', label = "Lv71～Lv80", min = 71, max = 80 },
-        { id = 'MAGIC_LEVEL_' .. group_index .. '_81_90', label = "Lv81～Lv90", min = 81, max = 90 },
-        { id = 'MAGIC_LEVEL_' .. group_index .. '_91_99', label = "Lv91～Lv99", min = 91, max = 99 },
-    }
     local labels = {
         messages.magic_menu.items.white,
         messages.magic_menu.items.black,

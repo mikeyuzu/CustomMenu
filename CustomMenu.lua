@@ -897,6 +897,134 @@ function Handle_Craft_Synthesis()
     end)
 end
 
+function Fetch_And_Display_Guild_Recipes(guild_index, rank_index, title)
+    local chara_id = param.get_chara_id() or windower.ffxi.get_player().id
+    param.set_chara_id(chara_id)
+
+    -- ギルドIDのマッピング (Lua 1-8: 木工-調理, 9: 釣り -> C# 1-8, 0)
+    local guild_id = guild_index % 9
+    local rank = rank_index
+
+    -- 所持品データを最新に更新してからレシピを取得
+    http_handler.fetch_synergy_inventory(chara_id, function(inv_success, inv_data)
+        if inv_success and inv_data then
+            param.set_synergy_inventory_cache(inv_data)
+        end
+
+        -- ギルド・ランク指定でレシピを取得
+        http_handler.fetch_synthesis_recipes(chara_id, guild_id, rank, function(success, recipe_data, error_message)
+            if success and recipe_data then
+                local inventory_cache = param.get_synergy_inventory_cache()
+                local inventory_map = {}
+                if inventory_cache then
+                    for _, item in ipairs(inventory_cache) do
+                        inventory_map[tostring(item.id) .. "_" .. tostring(item.subId)] = item.quantity
+                    end
+                end
+
+                local recipe_items = {}
+                for _, recipe in ipairs(recipe_data) do
+                    if recipe.crystal then
+                        recipe.crystal.possession = inventory_map[tostring(recipe.crystal.itemId) .. "_" .. tostring(recipe.crystal.subId)] or 0
+                    end
+                    if recipe.ingredient then
+                        for _, ing in ipairs(recipe.ingredient) do
+                            ing.possession = inventory_map[tostring(ing.itemId) .. "_" .. tostring(ing.subId)] or 0
+                        end
+                    end
+
+                    local all_possessed = true
+                    if recipe.crystal and (recipe.crystal.possession or 0) < (recipe.crystal.quantity or 1) then
+                        all_possessed = false
+                    end
+                    if all_possessed and recipe.ingredient then
+                        for _, ing in ipairs(recipe.ingredient) do
+                            if (ing.possession or 0) < (ing.quantity or 1) then
+                                all_possessed = false
+                                break
+                            end
+                        end
+                    end
+
+                    table.insert(recipe_items, {
+                        id = 'RECIPE_ITEM_' .. tostring(recipe.id),
+                        label = recipe.result and recipe.result.name or "不明",
+                        data = recipe,
+                        isOpen = recipe.isOpen,
+                        allMaterialsPossessed = all_possessed
+                    })
+                end
+
+                local current_id = string.format('GUILD_RANK_RECIPES_%d_%d', guild_index, rank_index)
+                local recipe_list_menu_data = {
+                    id = current_id,
+                    title = title or "レシピリスト",
+                    items = #recipe_items > 0 and recipe_items or {{ id = 'empty', label = "なし" }}
+                }
+
+                local current = param.get_current_menu()
+                if current and current.id == current_id then
+                    param.set_current_menu(menu_manager.create_current_menu_from_data(recipe_list_menu_data))
+                else
+                    param.set_current_menu(menu_manager.create_submenu(recipe_list_menu_data))
+                end
+
+                ui.hide_synthesis_details()
+                ui.show_menu_list(param.get_current_menu())
+                if #recipe_items > 0 then
+                    local cur = param.get_current_menu()
+                    if cur then
+                        ui.show_synthesis_details(recipe_items[cur.cursor].data)
+                    end
+                end
+            else
+                param.set_error_dialog_open(true)
+                param.set_error_dialog_message("レシピの取得に失敗しました: " .. (error_message or "不明"))
+                ui.create_error_dialog(param.get_error_dialog_message())
+            end
+        end)
+    end)
+end
+
+function Handle_Guild_List_Selection()
+    local menu_items = {}
+    -- messages.synergy_skill.items に各ギルド名が定義されている
+    for i, skill in ipairs(messages.synergy_skill.items) do
+        table.insert(menu_items, {
+            id = 'GUILD_RECIPES_' .. i,
+            label = skill.label,
+            description = skill.label .. "のレシピリストを表示します。"
+        })
+    end
+
+    local menu_data = {
+        title = messages.synthesis_menu.items.guild_list.label,
+        items = menu_items,
+        id = 'GUILD_LIST_MENU'
+    }
+    param.set_current_menu(menu_manager.create_submenu(menu_data))
+    ui.show_menu_list(param.get_current_menu())
+end
+
+function Handle_Guild_Rank_Selection(guild_id, guild_label)
+    local menu_items = {}
+    for i, rank in ipairs(messages.synthesis_menu.rank_list.items) do
+        table.insert(menu_items, {
+            id = string.format('GUILD_RANK_RECIPES_%d_%d', guild_id, i - 1),
+            label = rank.label,
+            description = string.format("%sの%sレシピを表示します。", guild_label, rank.label)
+        })
+    end
+
+    local menu_data = {
+        title = guild_label .. " - " .. messages.synthesis_menu.rank_list.title,
+        items = menu_items,
+        id = 'GUILD_RANK_LIST_MENU'
+    }
+    param.set_current_menu(menu_manager.create_submenu(menu_data))
+    ui.show_menu_list(param.get_current_menu())
+end
+
 function Handle_Synthesis_Storage_Navigation(menu_id)
     local inventory_cache = param.get_synergy_inventory_cache()
     if not inventory_cache then
@@ -1013,6 +1141,16 @@ function Handle_Confirm()
         Handle_Magic_Encyclopedia()
     elseif id_str:find('magic_item_') then
         Handle_Magic_Group_Selection(id_str)
+    elseif id_str:find('GUILD_RECIPES_') then
+        local gid = tonumber(id_str:match('GUILD_RECIPES_(%d+)'))
+        if gid then
+            Handle_Guild_Rank_Selection(gid, selected.label)
+        end
+    elseif id_str:find('GUILD_RANK_RECIPES_') then
+        local gid, rid = id_str:match('GUILD_RANK_RECIPES_(%d+)_(%d+)')
+        if gid and rid then
+            Fetch_And_Display_Guild_Recipes(tonumber(gid), tonumber(rid), selected.label)
+        end
     elseif id_str:find('MAGIC_LEVEL_') then
         local g, mi, ma = id_str:match('MAGIC_LEVEL_(%d+)_(%d+)_(%d+)')
         if g and mi and ma then
@@ -1122,6 +1260,12 @@ function Refresh_Current_Menu()
         local ah_id, min_lvl, max_lvl = current.id:match('ITEM_RECIPE_LEVEL_(%d+)_(%d+)_(%d+)')
         if ah_id and min_lvl and max_lvl then
             Fetch_And_Display_Item_Recipes(tonumber(ah_id), tonumber(min_lvl), tonumber(max_lvl), current.title)
+            return
+        end
+    elseif current.id and current.id:find('GUILD_RANK_RECIPES_') then
+        local gid, rid = current.id:match('GUILD_RANK_RECIPES_(%d+)_(%d+)')
+        if gid and rid then
+            Fetch_And_Display_Guild_Recipes(tonumber(gid), tonumber(rid), current.title)
             return
         end
     elseif current.id == 'ITEM_LIST_MENU' or current.is_item_list then

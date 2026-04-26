@@ -287,6 +287,44 @@ function menu_manager.get_history()
     return menu_stack
 end
 
+-- カーソルを移動（ページ単位）
+function menu_manager.move_page(direction)
+    if not current_menu or #current_menu.items <= 1 then return end
+
+    local total = #current_menu.items
+    local page_size = current_menu.page_size or 20
+    local step = direction * page_size
+
+    -- 新しいカーソル位置とスクロール位置を計算
+    local new_cursor = current_menu.cursor + step
+    local new_scroll = current_menu.scroll_pos + step
+
+    -- カーソル位置のクランプ
+    if new_cursor < 1 then
+        new_cursor = 1
+    elseif new_cursor > total then
+        new_cursor = total
+    end
+
+    -- スクロール位置のクランプと補正
+    local max_scroll = math.max(1, total - page_size + 1)
+    if new_scroll < 1 then
+        new_scroll = 1
+    elseif new_scroll > max_scroll then
+        new_scroll = max_scroll
+    end
+
+    -- 最終的なカーソル位置が表示範囲外（押し戻しが発生した場合など）なら調整
+    if new_cursor < new_scroll then
+        new_cursor = new_scroll
+    elseif new_cursor > new_scroll + page_size - 1 then
+        new_cursor = new_scroll + page_size - 1
+    end
+
+    current_menu.cursor = new_cursor
+    current_menu.scroll_pos = new_scroll
+end
+
 -- 現在のメニュー取得
 function menu_manager.get_current_menu()
     return current_menu

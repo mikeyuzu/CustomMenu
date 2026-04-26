@@ -1560,6 +1560,14 @@ windower.register_event('keyboard', function(dik, down, flags, blocked)
         menu_manager.move_cursor(1)
         ui.update_menu_display(param.get_current_menu())
         Refresh_Sub_Window()
+    elseif action == 'left' then
+        menu_manager.move_page(-1)
+        ui.update_menu_display(param.get_current_menu())
+        Refresh_Sub_Window()
+    elseif action == 'right' then
+        menu_manager.move_page(1)
+        ui.update_menu_display(param.get_current_menu())
+        Refresh_Sub_Window()
     elseif action == 'confirm' then
         Handle_Confirm()
     elseif action == 'cancel' then

@@ -79,6 +79,14 @@ local function Show_Magic_List_Menu(data, title)
     local menu_data = { title = title or messages.magic_menu.title, items = menu_items }
     param.set_current_menu(menu_manager.create_submenu(menu_data))
     ui.show_menu_list(param.get_current_menu())
+
+    -- 初期カーソルの魔法詳細を表示
+    if #menu_items > 0 then
+        local first_item = menu_items[1]
+        if first_item.data then
+            ui.show_magic_details(first_item.data.Id, first_item.data.Jobs, first_item.data.Flag)
+        end
+    end
 end
 
 local function Handle_Magic_Level_Selection(group_index, level_min, level_max)

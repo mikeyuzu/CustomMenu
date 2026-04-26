@@ -344,6 +344,7 @@ function ui.show_synthesis_details(recipe)
 
     local il = {}
     local ml = {}
+    cy.y = settings.synthesis_ingredient_panel.pos.y + 5
     table.insert(il, messages.synthesis_menu.elemental_item); cy.y = cy.y + lh
     local function add_mat(item, is_c)
         if not item then return end

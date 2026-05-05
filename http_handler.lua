@@ -425,6 +425,138 @@ function http_handler.fetch_magic_group_collection_list(chara_id, list_id, callb
     end)()
 end
 
+-- アイテム図鑑リスト取得API呼び出し
+function http_handler.fetch_item_collection_list(chara_id, callback)
+    local params = { charaId = chara_id }
+    local query_string = build_query_string(params)
+    local request_url = config.base_url .. '/GetItemCollectionList?' .. query_string
+
+    coroutine.wrap(function()
+        local success, data_string, status_code, error_message = http_handler.custom_request(request_url, 'GET')
+        local data = nil
+        if success then
+            local decoded_data, decode_error = json_decode_func(data_string)
+            if decoded_data ~= nil or data_string == "null" then
+                data = decoded_data
+            else
+                success = false
+                error_message = "JSON decode error for item collection list: " .. tostring(decode_error)
+            end
+        end
+        callback(success, data, error_message)
+    end)()
+end
+
+-- アイテムグループ別図鑑リスト取得API呼び出し
+function http_handler.fetch_item_group_collection_list(chara_id, group_id, callback)
+    local params = { charaId = chara_id, groupId = group_id }
+    local query_string = build_query_string(params)
+    local request_url = config.base_url .. '/GetItemGroupCollectionList?' .. query_string
+
+    coroutine.wrap(function()
+        local success, data_string, status_code, error_message = http_handler.custom_request(request_url, 'GET')
+        local data = nil
+        if success then
+            local decoded_data, decode_error = json_decode_func(data_string)
+            if decoded_data ~= nil or data_string == "null" then
+                data = decoded_data
+            else
+                success = false
+                error_message = "JSON decode error for item group collection list: " .. tostring(decode_error)
+            end
+        end
+        callback(success, data, error_message)
+    end)()
+end
+
+-- アイテムレベル別図鑑リスト取得API呼び出し
+function http_handler.fetch_item_level_collection_list(chara_id, group_id, sub_group_id, callback)
+    local params = { charaId = chara_id, groupId = group_id, subGroupId = sub_group_id }
+    local query_string = build_query_string(params)
+    local request_url = config.base_url .. '/GetItemLevelCollectionList?' .. query_string
+
+    coroutine.wrap(function()
+        local success, data_string, status_code, error_message = http_handler.custom_request(request_url, 'GET')
+        local data = nil
+        if success then
+            local decoded_data, decode_error = json_decode_func(data_string)
+            if decoded_data ~= nil or data_string == "null" then
+                data = decoded_data
+            else
+                success = false
+                error_message = "JSON decode error for item level collection list: " .. tostring(decode_error)
+            end
+        end
+        callback(success, data, error_message)
+    end)()
+end
+
+-- アイテム図鑑装備詳細リスト取得API呼び出し
+function http_handler.fetch_item_equipment_collection_list_detail(chara_id, group_id, sub_group_id, min_level, max_level, callback)
+    local params = { charaId = chara_id, groupId = group_id, subGroupId = sub_group_id, minLevel = min_level, maxLevel = max_level }
+    local query_string = build_query_string(params)
+    local request_url = config.base_url .. '/GetItemEquipmentCollectionListDetail?' .. query_string
+
+    coroutine.wrap(function()
+        local success, data_string, status_code, error_message = http_handler.custom_request(request_url, 'GET')
+        local data = nil
+        if success then
+            local decoded_data, decode_error = json_decode_func(data_string)
+            if decoded_data ~= nil or data_string == "null" then
+                data = decoded_data
+            else
+                success = false
+                error_message = "JSON decode error for item equipment collection list detail: " .. tostring(decode_error)
+            end
+        end
+        callback(success, data, error_message)
+    end)()
+end
+
+-- アイテム図鑑魔法詳細リスト取得API呼び出し
+function http_handler.fetch_item_magic_collection_list_detail(chara_id, group_id, sub_group_id, min_level, max_level, callback)
+    local params = { charaId = chara_id, groupId = group_id, subGroupId = sub_group_id, minLevel = min_level, maxLevel = max_level }
+    local query_string = build_query_string(params)
+    local request_url = config.base_url .. '/GetItemMagicCollectionListDetail?' .. query_string
+
+    coroutine.wrap(function()
+        local success, data_string, status_code, error_message = http_handler.custom_request(request_url, 'GET')
+        local data = nil
+        if success then
+            local decoded_data, decode_error = json_decode_func(data_string)
+            if decoded_data ~= nil or data_string == "null" then
+                data = decoded_data
+            else
+                success = false
+                error_message = "JSON decode error for item magic collection list detail: " .. tostring(decode_error)
+            end
+        end
+        callback(success, data, error_message)
+    end)()
+end
+
+-- アイテム図鑑アイテム詳細リスト取得API呼び出し
+function http_handler.fetch_item_collection_list_detail(chara_id, group_id, sub_group_id, callback)
+    local params = { charaId = chara_id, groupId = group_id, subGroupId = sub_group_id }
+    local query_string = build_query_string(params)
+    local request_url = config.base_url .. '/GetItemCollectionListDetail?' .. query_string
+
+    coroutine.wrap(function()
+        local success, data_string, status_code, error_message = http_handler.custom_request(request_url, 'GET')
+        local data = nil
+        if success then
+            local decoded_data, decode_error = json_decode_func(data_string)
+            if decoded_data ~= nil or data_string == "null" then
+                data = decoded_data
+            else
+                success = false
+                error_message = "JSON decode error for item collection list detail: " .. tostring(decode_error)
+            end
+        end
+        callback(success, data, error_message)
+    end)()
+end
+
 -- エミネンス・レコードリスト取得API呼び出し
 function http_handler.fetch_eminence_list(chara_id, callback)
     local params = { charaId = chara_id }

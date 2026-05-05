@@ -1,9 +1,11 @@
 local texts = require('texts')
+local bit = require('bit')
 local messages = require('message')
 local param = require('param')
 local settings_manager = require('settings')
 local mission_definitions = require('mission_definitions')
 local magic_definitions = require('magic_definitions')
+local item_definitions = require('item_definitions')
 local ui = {}
 
 local dialog_width = 300
@@ -707,6 +709,122 @@ function ui.show_magic_details(magic_id, jobs, flag)
 end
 
 function ui.hide_magic_details() ui.hide_mission_details() end
+
+local function _get_job_names_from_mask(mask)
+    mask = tonumber(mask) or 0
+    if mask == 0 then return "" end
+    if mask == 4194303 then return "All Jobs" end
+    
+    local job_names = {"戦","モ","白","黒","赤","シ","ナ","暗","獣","吟","狩","侍","忍","竜","召","青","コ","か","踊","学","風","剣"}
+    local results = {}
+    for i = 1, #job_names do
+        if bit.band(mask, bit.lshift(1, i - 1)) ~= 0 then
+            table.insert(results, job_names[i])
+        end
+    end
+    return table.concat(results, "")
+end
+
+function ui.show_item_details(item_info, type_str)
+    if not item_info then ui.hide_item_details(); return end
+    
+    local item_id = tonumber(item_info.Id or item_info.id)
+    local flag = tonumber(item_info.Flag or item_info.flag or 0)
+    local def = item_definitions.items[item_id]
+    local name = def and def.name or "アイテムID:"..item_id
+    local status = (flag == 1) and "入手済み" or "未入手"
+    
+    local l = {
+        " " .. name,
+        " 状態: " .. status,
+    }
+
+    if type_str == 'equipment' then
+        local level = tonumber(item_info.Level or item_info.level) or 1
+        local ilevel = tonumber(item_info.ItemLevel or item_info.Itemlevel or item_info.itemLevel or item_info.itemlevel) or 0
+        local jobs_mask = item_info.Jobs or item_info.jobs or 0
+        local jobs_str = _get_job_names_from_mask(jobs_mask)
+        
+        local eq_line = string.format(" Lv%d～ %s", level, jobs_str)
+        if ilevel > 0 then
+            eq_line = eq_line .. string.format(" ＜Item Level %d＞", ilevel)
+        end
+        table.insert(l, eq_line)
+    elseif type_str == 'magic' then
+        local jobs = item_info.Jobs or item_info.jobs
+        local job_names = {"戦","モ","白","黒","赤","シ","ナ","暗","獣","吟","狩","侍","忍","竜","召","青","コ","か","踊","学","風","剣"}
+        local level_strings = {}
+        if type(jobs) == 'table' then
+            local min_key = 999
+            for k, v in pairs(jobs) do
+                local nk = tonumber(k)
+                if nk and nk < min_key then min_key = nk end
+            end
+            for i = 0, #job_names - 1 do
+                local job_idx = (min_key == 0) and i or (i + 1)
+                local val = jobs[job_idx] or jobs[tostring(job_idx)]
+                local lvl = tonumber(val)
+                if lvl and lvl > 0 then
+                    if job_names[i+1] then table.insert(level_strings, job_names[i+1] .. "Lv" .. lvl) end
+                end
+            end
+        end
+        local level_display = #level_strings > 0 and table.concat(level_strings, " ") or "習得不可"
+        table.insert(l, " 習得レベル: " .. level_display)
+    end
+
+    table.insert(l, "")
+    table.insert(l, "--- 概要 ---")
+    table.insert(l, " " .. (def and def.description or "情報がありません。"))
+    table.insert(l, "")
+
+    if def then
+        local details = {
+            { key = "shop", label = "ショップ" },
+            { key = "quest", label = "クエスト報酬" },
+            { key = "drop", label = "モンスタードロップ" },
+            { key = "steal", label = "盗む" },
+            { key = "chest", label = "宝箱" },
+            { key = "mining", label = "採掘" },
+            { key = "content", label = "コンテンツ" },
+        }
+
+        for _, detail in ipairs(details) do
+            local val = def[detail.key]
+            local has_content = false
+            if type(val) == 'string' and val ~= "" then
+                has_content = true
+            elseif type(val) == 'table' and #val > 0 then
+                has_content = true
+            end
+
+            if has_content then
+                table.insert(l, "--- " .. detail.label .. " ---")
+                if type(val) == 'table' then
+                    for _, entry in ipairs(val) do
+                        if type(entry) == 'table' then
+                            local line = ""
+                            if entry.zone then line = line .. "[" .. entry.zone .. "] " end
+                            if entry.mob then line = line .. entry.mob end
+                            if line ~= "" then table.insert(l, " " .. line) end
+                        else
+                            table.insert(l, " " .. tostring(entry))
+                        end
+                    end
+                else
+                    for line in val:gmatch("([^\n]+)") do
+                        table.insert(l, " " .. line)
+                    end
+                end
+                table.insert(l, "")
+            end
+        end
+    end
+
+    mission_detail_panel_background = _update_panel(settings.mission_detail_panel, mission_detail_panel_texts, mission_detail_panel_background, l, 'left')
+end
+
+function ui.hide_item_details() ui.hide_mission_details() end
 
 -- 全てのUIを非表示にする（イベント中など）
 function ui.hide_all()

@@ -47,6 +47,7 @@ local synergy_category_generator = require('synergy_category_generator')
 local mission_definitions = require('mission_definitions')
 local eminence_definitions = require('eminence_definitions')
 local magic_definitions = require('magic_definitions')
+local item_definitions = require('item_definitions')
 
 -- ナビゲーションウィンドウ用の状態
 local last_nav_update = os.clock()
@@ -435,6 +436,195 @@ local function Handle_Magic_Encyclopedia()
             end
             local magic_menu_data = { title = messages.magic_menu.title, items = menu_items }
             param.set_current_menu(menu_manager.create_submenu(magic_menu_data))
+            ui.show_menu_list(param.get_current_menu())
+        end
+    end)
+end
+
+-- アイテム図鑑表示
+local function Show_Item_Detail_List(data, title, detail_type)
+    local menu_items = {}
+    for _, info in ipairs(data) do
+        local item_id = tonumber(info.Id or info.id)
+        local flag = tonumber(info.Flag or info.flag or 0)
+        
+        if item_id then
+            local def = item_definitions.items[item_id]
+            local label = def and def.name or ("アイテムID:" .. item_id)
+            if flag == 0 then
+                label = "\\cs(128,128,128)" .. label .. "\\cr"
+            end
+
+            table.insert(menu_items, {
+                id = 'ITEM_BOOK_INFO_' .. item_id,
+                label = label,
+                data = info,
+                detail_type = detail_type
+            })
+        end
+    end
+    local menu_data = { title = title, items = menu_items }
+    param.set_current_menu(menu_manager.create_submenu(menu_data))
+    ui.show_menu_list(param.get_current_menu())
+
+    -- 初期カーソルの詳細を表示
+    if #menu_items > 0 then
+        local first_item = menu_items[1]
+        if first_item.data then
+            ui.show_item_details(first_item.data, first_item.detail_type)
+        end
+    end
+end
+
+local level_ranges_99 = {
+    {1, 10}, {11, 20}, {21, 30}, {31, 40}, {41, 50}, {51, 60}, {61, 70}, {71, 80}, {81, 90}, {91, 99}
+}
+local level_ranges_119 = {
+    {1, 10}, {11, 20}, {21, 30}, {31, 40}, {41, 50}, {51, 60}, {61, 70}, {71, 80}, {81, 90}, {91, 100}, {101, 110}, {111, 118}, {119, 119}
+}
+
+local function Show_Item_Level_Selection_Menu(group_id, sub_group_id, data, title)
+    local use_119 = false
+    if group_id == 0 then
+        if sub_group_id <= 14 or sub_group_id == 18 or sub_group_id == 19 then
+            use_119 = true
+        end
+    elseif group_id == 1 then
+        if sub_group_id <= 5 then
+            use_119 = true
+        end
+    end
+
+    local labels = use_119 and messages.item_book.level_list_119 or messages.item_book.level_list_99
+    local menu_items = {}
+    for i, val in ipairs(data) do
+        local percentage = tonumber(val) / 100
+        table.insert(menu_items, { 
+            id = string.format('ITEM_BOOK_LEVEL_%d_%d_%d_%s', group_id, sub_group_id, i - 1, use_119 and "119" or "99"), 
+            label = string.format("%s %0.2f%%", labels[i] or "不明", percentage), 
+            description = "" 
+        })
+    end
+    local menu_data = { title = title, items = menu_items }
+    param.set_current_menu(menu_manager.create_submenu(menu_data))
+    ui.show_menu_list(param.get_current_menu())
+end
+
+local function Handle_Item_Level_Selection(group_id, sub_group_id, level_index, level_type, label)
+    local chara_id = param.get_chara_id()
+    local ranges = (level_type == "119") and level_ranges_119 or level_ranges_99
+    local range = ranges[level_index + 1]
+    if not range then return end
+
+    if group_id == 3 then -- MAGIC
+        http_handler.fetch_item_magic_collection_list_detail(chara_id, group_id, sub_group_id, range[1], range[2], function(success, data)
+            if success and data then Show_Item_Detail_List(data, label, 'magic') end
+        end)
+    else -- WEAPON or DEFENSE
+        http_handler.fetch_item_equipment_collection_list_detail(chara_id, group_id, sub_group_id, range[1], range[2], function(success, data)
+            if success and data then Show_Item_Detail_List(data, label, 'equipment') end
+        end)
+    end
+end
+
+local function Handle_Item_SubGroup_Selection(group_id, sub_group_id, label)
+    local chara_id = param.get_chara_id()
+    
+    if group_id == 0 then -- WEAPON
+        if sub_group_id == 15 or sub_group_id == 16 or sub_group_id == 17 then -- STRING, WIND, GEOMANTIC_HANDBELL
+            http_handler.fetch_item_equipment_collection_list_detail(chara_id, group_id, sub_group_id, 0, 999, function(success, data)
+                if success and data then Show_Item_Detail_List(data, label, 'equipment') end
+            end)
+        else
+            http_handler.fetch_item_level_collection_list(chara_id, group_id, sub_group_id, function(success, data)
+                if success and data then Show_Item_Level_Selection_Menu(group_id, sub_group_id, data, label) end
+            end)
+        end
+    elseif group_id == 1 then -- DEFENSE
+        http_handler.fetch_item_level_collection_list(chara_id, group_id, sub_group_id, function(success, data)
+            if success and data then Show_Item_Level_Selection_Menu(group_id, sub_group_id, data, label) end
+        end)
+    elseif group_id == 2 then -- OTHER_EQUIPMENT
+        http_handler.fetch_item_equipment_collection_list_detail(chara_id, group_id, sub_group_id, 0, 999, function(success, data)
+            if success and data then Show_Item_Detail_List(data, label, 'equipment') end
+        end)
+    elseif group_id == 3 then -- MAGIC
+        if sub_group_id == 7 then -- TRUST
+            http_handler.fetch_item_magic_collection_list_detail(chara_id, group_id, sub_group_id, 0, 999, function(success, data)
+                if success and data then Show_Item_Detail_List(data, label, 'magic') end
+            end)
+        else
+            http_handler.fetch_item_level_collection_list(chara_id, group_id, sub_group_id, function(success, data)
+                if success and data then Show_Item_Level_Selection_Menu(group_id, sub_group_id, data, label) end
+            end)
+        end
+    elseif group_id == 6 or group_id == 7 or group_id == 9 then -- MATERIALS, FOOD, OTHER
+        http_handler.fetch_item_collection_list_detail(chara_id, group_id, sub_group_id, function(success, data)
+            if success and data then Show_Item_Detail_List(data, label, 'item') end
+        end)
+    end
+end
+
+local function Handle_Item_Category_Selection(group_id, label)
+    local chara_id = param.get_chara_id()
+    -- MEDICINES(4), FURNISHINGS(5), CRYSTAL(8) skip sub-groups
+    if group_id == 4 or group_id == 5 or group_id == 8 then
+        http_handler.fetch_item_collection_list_detail(chara_id, group_id, 0, function(success, data)
+            if success and data then
+                Show_Item_Detail_List(data, label, 'item')
+            end
+        end)
+        return
+    end
+
+    http_handler.fetch_item_group_collection_list(chara_id, group_id, function(success, data)
+        if success and data then
+            local labels_map = {
+                [0] = messages.item_book.weapon_list,
+                [1] = messages.item_book.defense_list,
+                [2] = messages.item_book.other_equipment_list,
+                [3] = messages.item_book.magic_list,
+                [6] = messages.item_book.material_list,
+                [7] = messages.item_book.food_list,
+                [9] = messages.item_book.other_list,
+            }
+            local labels = labels_map[group_id] or {}
+            local menu_items = {}
+            for i, val in ipairs(data) do
+                local percentage = tonumber(val) / 100
+                table.insert(menu_items, { 
+                    id = string.format('ITEM_BOOK_SUB_%d_%d', group_id, i - 1), 
+                    label = string.format("%s %0.2f%%", labels[i] or "不明", percentage), 
+                    description = "" 
+                })
+            end
+            local menu_data = { title = label, items = menu_items }
+            param.set_current_menu(menu_manager.create_submenu(menu_data))
+            ui.show_menu_list(param.get_current_menu())
+        end
+    end)
+end
+
+local function Handle_Item_Encyclopedia()
+    local player = windower.ffxi.get_player()
+    if not player or not player.id then
+        return
+    end
+    param.set_chara_id(player.id)
+    http_handler.fetch_item_collection_list(player.id, function(success, data)
+        if success and data then
+            local labels = messages.item_book.category
+            local menu_items = {}
+            for i, val in ipairs(data) do
+                local percentage = tonumber(val) / 100
+                table.insert(menu_items, { 
+                    id = 'ITEM_BOOK_CAT_' .. (i - 1), 
+                    label = string.format("%s %0.2f%%", labels[i] or "不明", percentage), 
+                    description = "" 
+                })
+            end
+            local menu_data = { title = messages.collection_menu.items.item, items = menu_items }
+            param.set_current_menu(menu_manager.create_submenu(menu_data))
             ui.show_menu_list(param.get_current_menu())
         end
     end)
@@ -1164,8 +1354,27 @@ function Handle_Confirm()
     -- IDパターン別の処理
     if id_str == 'collection_item_1' then
         Handle_Mission_Encyclopedia()
+    elseif id_str == 'collection_item_3' then
+        Handle_Item_Encyclopedia()
     elseif id_str == 'collection_item_5' then
         Handle_Magic_Encyclopedia()
+    elseif id_str:find('ITEM_BOOK_CAT_') then
+        local gid = tonumber(id_str:match('ITEM_BOOK_CAT_(%d+)'))
+        if gid then
+            Handle_Item_Category_Selection(gid, selected.label)
+        end
+    elseif id_str:find('ITEM_BOOK_SUB_') then
+        local gid, sid = id_str:match('ITEM_BOOK_SUB_(%d+)_(%d+)')
+        if gid and sid then
+            Handle_Item_SubGroup_Selection(tonumber(gid), tonumber(sid), selected.label)
+        end
+    elseif id_str:find('ITEM_BOOK_LEVEL_') then
+        local gid, sid, li, lt = id_str:match('ITEM_BOOK_LEVEL_(%d+)_(%d+)_(%d+)_(%d+)')
+        if gid and sid and li and lt then
+            Handle_Item_Level_Selection(tonumber(gid), tonumber(sid), tonumber(li), lt, selected.label)
+        end
+    elseif id_str:find('ITEM_BOOK_INFO_') then
+        return
     elseif id_str:find('magic_item_') then
         Handle_Magic_Group_Selection(id_str)
     elseif id_str:find('GUILD_RECIPES_') then
@@ -1271,6 +1480,10 @@ function Refresh_Sub_Window()
     elseif id_str:find('MAGIC_INFO_') then
         if selected.data then
             ui.show_magic_details(selected.data.Id, selected.data.Jobs, selected.data.Flag)
+        end
+    elseif id_str:find('ITEM_BOOK_INFO_') then
+        if selected.data then
+            ui.show_item_details(selected.data, selected.detail_type)
         end
     elseif id_str:find('EMINENCE_ITEM_') then
         ui.show_eminence_details(selected.data, selected.status)

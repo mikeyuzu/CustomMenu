@@ -663,7 +663,9 @@ function ui.show_magic_details(magic_id, jobs, flag)
             { key = "steal", label = "盗む" },
             { key = "chest", label = "宝箱" },
             { key = "mining", label = "採掘" },
+            { key = "synth", label = "合成" },
             { key = "content", label = "コンテンツ" },
+            { key = "acquisition", label = "その他入手方法" },
         }
 
         for _, detail in ipairs(details) do
@@ -786,7 +788,9 @@ function ui.show_item_details(item_info, type_str)
             { key = "steal", label = "盗む" },
             { key = "chest", label = "宝箱" },
             { key = "mining", label = "採掘" },
+            { key = "synth", label = "合成" },
             { key = "content", label = "コンテンツ" },
+            { key = "acquisition", label = "その他入手方法" },
         }
 
         for _, detail in ipairs(details) do
